@@ -10,8 +10,8 @@ return new class extends Migration
     {
         if (Schema::hasTable('units')) {
             Schema::table('units', function (Blueprint $table) {
-                $table->enum('leasing_type', ['rental', 'booking'])->default('rental')->after('description');
-                $table->enum('availability', ['available', 'not_available'])->default('available')->after('leasing_type');
+                $table->string('leasing_type', 20)->default('rental')->after('description');
+                $table->string('availability', 20)->default('available')->after('leasing_type');
             });
         }
     }
