@@ -1,5 +1,5 @@
-# Use PHP 8.2 with Apache as base image
-FROM php:8.2-apache
+# Use PHP 8.3 with FPM as base image for better performance
+FROM php:8.3-fpm
 
 # Set working directory
 WORKDIR /var/www/html
@@ -12,12 +12,16 @@ RUN apt-get update && apt-get install -y \
     libjpeg-dev \
     libfreetype6-dev \
     libxml2-dev \
+    libzip-dev \
+    libonig-dev \
     zip \
     unzip \
     nodejs \
     npm \
+    nginx \
+    supervisor \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd \
+    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -38,23 +42,60 @@ RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html/storage \
     && chmod -R 755 /var/www/html/bootstrap/cache
 
-# Configure Apache
-RUN a2enmod rewrite
-COPY docker/apache.conf /etc/apache2/sites-available/000-default.conf
+# Create required directories for nginx and logs
+RUN mkdir -p /var/log/nginx /tmp \
+    && chown -R www-data:www-data /var/log/nginx
+
+# Configure nginx
+COPY docker/nginx.conf /etc/nginx/nginx.conf
+
+# Configure PHP-FPM
+COPY docker/php-fpm.conf /usr/local/etc/php-fpm.d/www.conf
+
+# Configure supervisord
+COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Create startup script
 RUN echo '#!/bin/bash' > /startup.sh && \
     echo 'set -e' >> /startup.sh && \
     echo 'echo "Starting Laravel application..."' >> /startup.sh && \
+    echo '' >> /startup.sh && \
+    echo '# Copy environment file if not exists' >> /startup.sh && \
     echo 'if [ ! -f .env ]; then' >> /startup.sh && \
+    echo '  echo "Copying .env.example to .env"' >> /startup.sh && \
     echo '  cp .env.example .env' >> /startup.sh && \
     echo 'fi' >> /startup.sh && \
+    echo '' >> /startup.sh && \
+    echo '# Generate Laravel application key if not set' >> /startup.sh && \
+    echo 'if grep -q "APP_KEY=$" .env; then' >> /startup.sh && \
+    echo '  echo "Generating Laravel application key..."' >> /startup.sh && \
+    echo '  php artisan key:generate' >> /startup.sh && \
+    echo 'fi' >> /startup.sh && \
+    echo '' >> /startup.sh && \
+    echo '# Clear and optimize Laravel caches' >> /startup.sh && \
+    echo 'echo "Optimizing Laravel caches..."' >> /startup.sh && \
+    echo 'php artisan config:cache' >> /startup.sh && \
+    echo 'php artisan route:cache' >> /startup.sh && \
+    echo 'php artisan view:cache' >> /startup.sh && \
+    echo '' >> /startup.sh && \
+    echo '# Test nginx configuration' >> /startup.sh && \
+    echo 'echo "Testing nginx configuration..."' >> /startup.sh && \
+    echo 'nginx -t || exit 1' >> /startup.sh && \
+    echo '' >> /startup.sh && \
+    echo '# Test PHP-FPM configuration' >> /startup.sh && \
+    echo 'echo "Testing PHP-FPM configuration..."' >> /startup.sh && \
+    echo 'php-fpm -t || exit 1' >> /startup.sh && \
+    echo '' >> /startup.sh && \
     echo 'echo "Laravel application ready!"' >> /startup.sh && \
-    echo 'exec apache2-foreground' >> /startup.sh && \
+    echo 'exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf' >> /startup.sh && \
     chmod +x /startup.sh
 
 # Expose port 80
 EXPOSE 80
+
+# Add health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost/health || exit 1
 
 # Start with our custom startup script
 CMD ["/startup.sh"] 
