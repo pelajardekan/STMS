@@ -1,7 +1,7 @@
 # Azure Setup Script for STMS
 # Run this script after installing Azure CLI
 
-Write-Host "🚀 Setting up Azure resources for STMS..." -ForegroundColor Green
+Write-Host "Setting up Azure resources for STMS..." -ForegroundColor Green
 
 # Configuration
 $RESOURCE_GROUP = "stms-rg"
@@ -25,7 +25,7 @@ Write-Host "🏗️ Creating Azure Container Registry..." -ForegroundColor Yello
 az acr create --resource-group $RESOURCE_GROUP --name $ACR_NAME --sku Basic --admin-enabled true
 
 # Get ACR credentials
-Write-Host "🔑 Getting ACR credentials..." -ForegroundColor Yellow
+Write-Host "Getting ACR credentials..." -ForegroundColor Yellow
 $ACR_LOGIN_SERVER = az acr show --name $ACR_NAME --resource-group $RESOURCE_GROUP --query "loginServer" --output tsv
 $ACR_USERNAME = az acr credential show --name $ACR_NAME --query "username" --output tsv
 $ACR_PASSWORD = az acr credential show --name $ACR_NAME --query "passwords[0].value" --output tsv
