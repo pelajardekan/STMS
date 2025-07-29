@@ -21,7 +21,8 @@ RUN apk add --no-cache \
     oniguruma-dev \
     autoconf \
     g++ \
-    make
+    make \
+    gettext
 
 # Configure and install PHP extensions
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg
@@ -55,19 +56,25 @@ COPY docker/nginx.conf /etc/nginx/nginx.conf
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/php.ini /usr/local/etc/php/conf.d/custom.ini
 
-# Create .env file if it doesn't exist
-RUN cp .env.example .env
+# Create startup script
+RUN echo '#!/bin/sh' > /startup.sh && \
+    echo 'set -e' >> /startup.sh && \
+    echo 'echo "Starting Laravel application..."' >> /startup.sh && \
+    echo 'if [ ! -f .env ]; then' >> /startup.sh && \
+    echo '  cp .env.example .env' >> /startup.sh && \
+    echo 'fi' >> /startup.sh && \
+    echo 'echo "Configuring nginx for port ${PORT:-80}..."' >> /startup.sh && \
+    echo 'envsubst "\$PORT" < /etc/nginx/nginx.conf > /tmp/nginx.conf' >> /startup.sh && \
+    echo 'mv /tmp/nginx.conf /etc/nginx/nginx.conf' >> /startup.sh && \
+    echo 'echo "Laravel application ready!"' >> /startup.sh && \
+    echo 'exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf' >> /startup.sh && \
+    chmod +x /startup.sh
 
-# Generate application key
-RUN php artisan key:generate
+# Create necessary directories
+RUN mkdir -p /tmp /var/log/nginx
 
-# Optimize Laravel for production
-RUN php artisan config:cache \
-    && php artisan route:cache \
-    && php artisan view:cache
-
-# Expose port 80
+# Expose port 80 (Azure App Service will override this with PORT env var)
 EXPOSE 80
 
-# Start supervisor
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"] 
+# Start with our custom startup script
+CMD ["/startup.sh"] 

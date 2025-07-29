@@ -19,6 +19,14 @@ use App\Http\Controllers\PropertyUnitController;
 use App\Http\Controllers\PropertyUnitParameterController;
 use App\Http\Controllers\RentalRequestController;
 use App\Http\Controllers\BookingRequestController;
+use App\Http\Controllers\TenantPropertyController;
+use App\Http\Controllers\TenantUnitController;
+use App\Http\Controllers\TenantRentalRequestController;
+use App\Http\Controllers\TenantBookingRequestController;
+use App\Http\Controllers\TenantRentalController;
+use App\Http\Controllers\TenantBookingController;
+use App\Http\Controllers\TenantInvoiceController;
+use App\Http\Controllers\TenantPaymentController;
 
 // Welcome page redirects to login
 Route::get('/', function () {
@@ -233,33 +241,65 @@ Route::middleware('auth')->group(function () {
     });
 
     // Tenant-only routes
-    Route::middleware('auth')->group(function () {
+    Route::middleware(['auth', 'role:tenant'])->group(function () {
         // Tenant can view their own profile
         Route::get('/profile', [TenantController::class, 'show'])->name('tenant.profile');
         Route::get('/profile/edit', [TenantController::class, 'edit'])->name('tenant.profile.edit');
         Route::put('/profile', [TenantController::class, 'update'])->name('tenant.profile.update');
         
         // Tenant can view available properties
-        Route::get('/properties', [PropertyController::class, 'index'])->name('tenant.properties.index');
-        Route::get('/properties/{property}', [PropertyController::class, 'show'])->name('tenant.properties.show');
+        Route::get('/properties', [TenantPropertyController::class, 'index'])->name('tenant.properties.index');
+        Route::get('/properties/{property}', [TenantPropertyController::class, 'show'])->name('tenant.properties.show');
         
         // Tenant can view available units
-        Route::get('/units', [UnitController::class, 'index'])->name('tenant.units.index');
-        Route::get('/units/{unit}', [UnitController::class, 'show'])->name('tenant.units.show');
+        Route::get('/units', [TenantUnitController::class, 'index'])->name('tenant.units.index');
+        Route::get('/units/{unit}', [TenantUnitController::class, 'show'])->name('tenant.units.show');
         
         // Tenant can manage their rental requests
-        Route::resource('rental-requests', RentalController::class)->only(['index', 'create', 'store', 'show']);
+        Route::resource('rental-requests', TenantRentalRequestController::class)->names([
+            'index' => 'tenant.rental-requests.index',
+            'create' => 'tenant.rental-requests.create',
+            'store' => 'tenant.rental-requests.store',
+            'show' => 'tenant.rental-requests.show',
+        ]);
         
         // Tenant can manage their booking requests
-        Route::resource('booking-requests', BookingController::class)->only(['index', 'create', 'store', 'show']);
+        Route::resource('booking-requests', TenantBookingRequestController::class)->names([
+            'index' => 'tenant.booking-requests.index',
+            'create' => 'tenant.booking-requests.create',
+            'store' => 'tenant.booking-requests.store',
+            'show' => 'tenant.booking-requests.show',
+        ]);
+        
+        // Get available units for booking on a specific date
+        Route::get('booking-requests/available-units', [TenantBookingRequestController::class, 'getAvailableUnitsForDate'])
+            ->name('tenant.booking-requests.available-units');
+        
+        // Tenant can view their rentals
+        Route::resource('rentals', TenantRentalController::class)->names([
+            'index' => 'tenant.rentals.index',
+            'show' => 'tenant.rentals.show',
+        ]);
+        
+        // Tenant can view their bookings
+        Route::resource('bookings', TenantBookingController::class)->names([
+            'index' => 'tenant.bookings.index',
+            'show' => 'tenant.bookings.show',
+        ]);
         
         // Tenant can view their invoices
-        Route::get('/my-invoices', [InvoiceController::class, 'index'])->name('tenant.invoices.index');
-        Route::get('/my-invoices/{invoice}', [InvoiceController::class, 'show'])->name('tenant.invoices.show');
+        Route::resource('invoices', TenantInvoiceController::class)->names([
+            'index' => 'tenant.invoices.index',
+            'show' => 'tenant.invoices.show',
+        ]);
         
-        // Tenant can view their payments
-        Route::get('/my-payments', [PaymentController::class, 'index'])->name('tenant.payments.index');
-        Route::get('/my-payments/{payment}', [PaymentController::class, 'show'])->name('tenant.payments.show');
+        // Tenant can view and create payments
+        Route::resource('payments', TenantPaymentController::class)->names([
+            'index' => 'tenant.payments.index',
+            'create' => 'tenant.payments.create',
+            'store' => 'tenant.payments.store',
+            'show' => 'tenant.payments.show',
+        ]);
     });
 });
 

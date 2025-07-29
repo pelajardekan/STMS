@@ -41,4 +41,28 @@ class Booking extends Model
     {
         return $this->hasMany(Invoice::class, 'booking_id', 'booking_id');
     }
+
+    /**
+     * Get the tenant through booking request.
+     */
+    public function tenant()
+    {
+        return $this->bookingRequest->tenant;
+    }
+
+    /**
+     * Get the property through booking request.
+     */
+    public function property()
+    {
+        return $this->bookingRequest->property;
+    }
+
+    /**
+     * Get the unit through booking request.
+     */
+    public function unit()
+    {
+        return $this->bookingRequest->unit;
+    }
 }

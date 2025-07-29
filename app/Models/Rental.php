@@ -38,4 +38,28 @@ class Rental extends Model
     {
         return $this->hasMany(Invoice::class, 'rental_id', 'rental_id');
     }
+
+    /**
+     * Get the tenant through rental request.
+     */
+    public function tenant()
+    {
+        return $this->rentalRequest->tenant;
+    }
+
+    /**
+     * Get the property through rental request.
+     */
+    public function property()
+    {
+        return $this->rentalRequest->property;
+    }
+
+    /**
+     * Get the unit through rental request.
+     */
+    public function unit()
+    {
+        return $this->rentalRequest->unit;
+    }
 }
