@@ -63,9 +63,6 @@ RUN echo '#!/bin/sh' > /startup.sh && \
     echo 'if [ ! -f .env ]; then' >> /startup.sh && \
     echo '  cp .env.example .env' >> /startup.sh && \
     echo 'fi' >> /startup.sh && \
-    echo 'echo "Configuring nginx for port ${PORT:-80}..."' >> /startup.sh && \
-    echo 'envsubst "\$PORT" < /etc/nginx/nginx.conf > /tmp/nginx.conf' >> /startup.sh && \
-    echo 'mv /tmp/nginx.conf /etc/nginx/nginx.conf' >> /startup.sh && \
     echo 'echo "Laravel application ready!"' >> /startup.sh && \
     echo 'exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf' >> /startup.sh && \
     chmod +x /startup.sh
