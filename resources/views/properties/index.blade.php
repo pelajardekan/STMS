@@ -1,94 +1,436 @@
 @extends('layouts.sidebar')
-@section('title', 'Properties')
-@section('content')
-<!-- Search and Filters -->
-<x-card>
-    <div class="flex flex-col md:flex-row gap-4 items-center justify-between">
-        <div class="flex flex-col md:flex-row gap-4 flex-1">
-            <x-input placeholder="Search properties..." class="w-full md:w-64" />
-            <x-select placeholder="Filter by type" class="w-full md:w-48">
-                <option value="">All Types</option>
-                <option value="apartment">Apartment</option>
-                <option value="house">House</option>
-                <option value="condo">Condo</option>
-                <option value="office">Office</option>
-            </x-select>
-            <x-select placeholder="Filter by status" class="w-full md:w-48">
-                <option value="">All Status</option>
-                <option value="available">Available</option>
-                <option value="occupied">Occupied</option>
-                <option value="maintenance">Maintenance</option>
-            </x-select>
-        </div>
-        <x-button label="Add Property" link="{{ route('properties.create') }}" class="btn-primary" />
-    </div>
-</x-card>
 
-<!-- Success/Error Messages -->
-@if(session('success'))
-    <x-alert title="Success!" description="{{ session('success') }}" icon="o-check-circle" class="alert-success" />
+@section('title', 'Manage Properties')
+
+@section('content')
+<div class="flex-1 flex flex-col px-4 md:px-8 py-8 w-full">
+    <div class="bg-base-100 shadow-xl rounded-2xl p-8 w-full mx-auto">
+        <!-- Header Section -->
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-8">
+            <div>
+                <h1 class="text-3xl font-bold text-base-content">Manage Properties</h1>
+                <p class="text-base-content/60 mt-1">Manage all properties in the system</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <a href="{{ route('properties.create') }}" class="btn btn-primary">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                    </svg>
+                    Add Property
+                </a>
+            </div>
+        </div>
+
+        <!-- Search and Filters Section -->
+        <div class="flex flex-col lg:flex-row gap-4 mb-6">
+            <div class="flex-1">
+                <div class="form-control">
+                    <div class="input-group">
+                        <input type="text" placeholder="Search properties..." class="input input-bordered flex-1" id="searchInput" />
+                        <button class="btn btn-square">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <select class="select select-bordered" id="typeFilter">
+                <option value="">All Types</option>
+                    <option value="residential">Residential</option>
+                    <option value="commercial">Commercial</option>
+                    <option value="industrial">Industrial</option>
+                    <option value="mixed">Mixed</option>
+                </select>
+                <select class="select select-bordered" id="statusFilter">
+                    <option value="">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                </select>
+                <select class="select select-bordered" id="sortBy">
+                    <option value="">Sort By</option>
+                    <option value="name">Name</option>
+                    <option value="type">Type</option>
+                    <option value="status">Status</option>
+                    <option value="created_at">Date Created</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Success/Error Messages with Auto-hide -->
+        @if(session('success'))
+            <div class="alert alert-success mb-6" id="successAlert">
+                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>{{ session('success') }}</span>
+                <button class="btn btn-sm btn-ghost" onclick="hideAlert('successAlert')">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+    </div>
+        @endif
+
+        @if(session('info'))
+            <div class="alert alert-info mb-6" id="infoAlert">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span>{{ session('info') }}</span>
+                <button class="btn btn-sm btn-ghost" onclick="hideAlert('infoAlert')">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
 @endif
 
 @if($errors->any())
-    <x-alert title="Error!" description="Please fix the following errors:" icon="o-exclamation-triangle" class="alert-error">
-        <ul class="list-disc list-inside">
-            @foreach($errors->all() as $error)
-                <li>{{ $error }}</li>
-            @endforeach
-        </ul>
-    </x-alert>
+            <div class="alert alert-error mb-6" id="errorAlert">
+                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>{{ $errors->first() }}</span>
+                <button class="btn btn-sm btn-ghost" onclick="hideAlert('errorAlert')">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
 @endif
 
-<!-- Properties Grid -->
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+        <!-- Table Section -->
+        <div class="overflow-x-auto">
+            <table class="table w-full">
+                <thead>
+                    <tr class="bg-base-200">
+                        <th class="text-base-content font-semibold">Property</th>
+                        <th class="text-base-content font-semibold">Type</th>
+                        <th class="text-base-content font-semibold">Status</th>
+                        <th class="text-base-content font-semibold">Units</th>
+                        <th class="text-base-content font-semibold">Created</th>
+                        <th class="text-base-content font-semibold text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
     @forelse($properties as $property)
-        <x-card>
-            <x-slot:figure>
-                <div class="h-48 bg-base-200 rounded-t-lg flex items-center justify-center">
-                    <x-icon name="o-building-office" class="w-16 h-16 text-base-content/40" />
-                </div>
-            </x-slot:figure>
-            
-            <x-slot:body>
-                <h3 class="text-lg font-semibold">{{ $property->name }}</h3>
-                <p class="text-base-content/60 text-sm">{{ $property->address }}</p>
-                <div class="flex items-center gap-2 mt-2">
-                    <x-badge value="{{ ucfirst($property->type) }}" class="badge-primary" />
-                    <x-badge value="{{ ucfirst($property->status) }}" class="badge-{{ $property->status === 'available' ? 'success' : ($property->status === 'occupied' ? 'warning' : 'error') }}" />
-                </div>
-                @if($property->description)
-                    <p class="text-base-content/70 text-sm mt-2 line-clamp-2">{{ $property->description }}</p>
-                @endif
-            </x-slot:body>
-            
-            <x-slot:actions>
-                <x-button label="View" link="{{ route('properties.show', $property->property_id) }}" class="btn-primary btn-sm" />
-                <x-button label="Edit" link="{{ route('properties.edit', $property->property_id) }}" class="btn-outline btn-sm" />
-                <form method="POST" action="{{ route('properties.destroy', $property->property_id) }}" class="inline" onsubmit="return confirm('Are you sure you want to delete this property?')">
-                    @csrf
-                    @method('DELETE')
-                    <x-button label="Delete" type="submit" class="btn-error btn-sm" />
-                </form>
-            </x-slot:actions>
-        </x-card>
-    @empty
-        <div class="col-span-full">
-            <x-card>
-                <div class="text-center py-8">
-                    <x-icon name="o-building-office" class="w-16 h-16 text-base-content/40 mx-auto mb-4" />
-                    <h3 class="text-lg font-semibold mb-2">No Properties Found</h3>
-                    <p class="text-base-content/60 mb-4">Get started by adding your first property.</p>
-                    <x-button label="Add Property" link="{{ route('properties.create') }}" class="btn-primary" />
-                </div>
-            </x-card>
+                        <tr class="hover:bg-base-200/50 transition-colors">
+                            <td>
+                                <div>
+                                    <a href="{{ route('properties.units.index', $property->property_id) }}" class="font-bold text-primary hover:text-primary-focus hover:underline cursor-pointer">
+                                        {{ $property->name }}
+                                    </a>
+                                    <div class="text-sm text-base-content/60">{{ $property->address }}</div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge badge-primary gap-1">
+                                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm3 2h6v4H7V6zm8 8v2h1v-2h-1zm-2 2v2h1v-2h-1zm-2 2v2h1v-2h-1zm-2 2v2h1v-2h-1zm-2 2v2h1v-2h-1z" clip-rule="evenodd"/>
+                                    </svg>
+                                    {{ ucfirst($property->type) }}
+                                </span>
+                            </td>
+                            <td>
+                                @if($property->status === 'active')
+                                    <span class="badge badge-success gap-1">
+                                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                        </svg>
+                                        Active
+                                    </span>
+                                @elseif($property->status === 'inactive')
+                                    <span class="badge badge-neutral gap-1">
+                                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/>
+                                        </svg>
+                                        Inactive
+                                    </span>
+                                @else
+                                    <span class="badge badge-warning gap-1">
+                                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                        </svg>
+                                        {{ ucfirst($property->status) }}
+                                    </span>
+                                @endif
+                            </td>
+                            <td>
+                                <div class="text-sm text-base-content/60">
+                                    {{ $property->units->count() }} units
+                                </div>
+                            </td>
+                            <td>
+                                <div class="text-sm text-base-content/60">
+                                    {{ $property->created_at ? $property->created_at->format('M d, Y') : 'N/A' }}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="flex justify-center gap-1">
+                                    <a href="{{ route('properties.edit', $property->property_id) }}" 
+                                       class="btn btn-ghost btn-sm" 
+                                       title="Edit Property">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                        </svg>
+                                    </a>
+                                    <button class="btn btn-ghost btn-sm text-error" 
+                                            onclick="openDeleteModal({{ $property->property_id }}, '{{ $property->name }}')"
+                                            title="Delete Property">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="6" class="text-center py-12">
+                                <div class="flex flex-col items-center gap-4">
+                                    <svg class="w-16 h-16 text-base-content/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                                    </svg>
+                                    <div>
+                                        <h3 class="text-lg font-semibold text-base-content">No properties found</h3>
+                                        <p class="text-base-content/60">Get started by creating your first property.</p>
+                                    </div>
+                                    <a href="{{ route('properties.create') }}" class="btn btn-primary">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                                        </svg>
+                                        Add First Property
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
-    @endforelse
+
+        <!-- Pagination Section -->
+        <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mt-6 pt-6 border-t border-base-300">
+            <!-- Results Info -->
+            <div class="text-sm text-base-content/60">
+                Showing {{ $properties->firstItem() ?? 0 }} to {{ $properties->lastItem() ?? 0 }} of {{ $properties->total() }} results
+                </div>
+            
+            <!-- Pagination Links -->
+            @if($properties->hasPages())
+                <div class="join">
+                    {{-- Previous Page --}}
+                    @if ($properties->onFirstPage())
+                        <button class="join-item btn btn-sm" disabled>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                            </svg>
+                        </button>
+                    @else
+                        <a href="{{ $properties->previousPageUrl() }}" class="join-item btn btn-sm">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                            </svg>
+                        </a>
+                    @endif
+
+                    {{-- Page Numbers --}}
+                    @foreach ($properties->getUrlRange(1, $properties->lastPage()) as $page => $url)
+                        @if ($page == $properties->currentPage())
+                            <button class="join-item btn btn-sm btn-active">{{ $page }}</button>
+                        @else
+                            <a href="{{ $url }}" class="join-item btn btn-sm">{{ $page }}</a>
+                        @endif
+                    @endforeach
+
+                    {{-- Next Page --}}
+                    @if ($properties->hasMorePages())
+                        <a href="{{ $properties->nextPageUrl() }}" class="join-item btn btn-sm">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                            </svg>
+                        </a>
+                    @else
+                        <button class="join-item btn btn-sm" disabled>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                            </svg>
+                        </button>
+                    @endif
+                </div>
+            @else
+                <!-- Single page indicator -->
+                <div class="text-sm text-base-content/60">
+                    Page 1 of 1
+                </div>
+            @endif
+        </div>
+    </div>
 </div>
 
-<!-- Pagination -->
-@if($properties->hasPages())
-    <div class="mt-6">
-        {{ $properties->links() }}
+<!-- Delete Confirmation Modal -->
+<div id="deleteModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Delete Property</h3>
+        <p class="py-4">Are you sure you want to delete <span id="deletePropertyName" class="font-semibold"></span>? This action cannot be undone.</p>
+        <div class="modal-action">
+            <button class="btn btn-ghost" onclick="closeDeleteModal()">Cancel</button>
+            <form id="deleteForm" method="POST" style="display: inline;">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="btn btn-error">Delete</button>
+            </form>
+        </div>
     </div>
-@endif
+</div>
+
+
+
+<script>
+// Auto-hide alerts after 5 seconds
+document.addEventListener('DOMContentLoaded', function() {
+    const alerts = document.querySelectorAll('.alert');
+    alerts.forEach(alert => {
+        setTimeout(() => {
+            if (alert && alert.parentNode) {
+                alert.style.transition = 'opacity 0.5s ease-out';
+                alert.style.opacity = '0';
+                setTimeout(() => {
+                    if (alert && alert.parentNode) {
+                        alert.remove();
+                    }
+                }, 500);
+            }
+        }, 5000);
+    });
+});
+
+// Manual hide alert function
+function hideAlert(alertId) {
+    const alert = document.getElementById(alertId);
+    if (alert) {
+        alert.style.transition = 'opacity 0.5s ease-out';
+        alert.style.opacity = '0';
+        setTimeout(() => {
+            if (alert && alert.parentNode) {
+                alert.remove();
+            }
+        }, 500);
+    }
+}
+
+// Search functionality
+const searchInput = document.getElementById('searchInput');
+if (searchInput) {
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        const rows = document.querySelectorAll('tbody tr');
+        
+        rows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            if (text.includes(searchTerm)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+}
+
+// Type filter functionality
+const typeFilter = document.getElementById('typeFilter');
+if (typeFilter) {
+    typeFilter.addEventListener('change', function() {
+        const selectedType = this.value.toLowerCase();
+        const rows = document.querySelectorAll('tbody tr');
+        
+        rows.forEach(row => {
+            const typeCell = row.querySelector('td:nth-child(2)');
+            if (typeCell) {
+                const typeText = typeCell.textContent.toLowerCase();
+                if (selectedType === '' || typeText.includes(selectedType)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            }
+        });
+    });
+}
+
+// Status filter functionality
+const statusFilter = document.getElementById('statusFilter');
+if (statusFilter) {
+    statusFilter.addEventListener('change', function() {
+        const selectedStatus = this.value.toLowerCase();
+        const rows = document.querySelectorAll('tbody tr');
+        
+        rows.forEach(row => {
+            const statusCell = row.querySelector('td:nth-child(3)');
+            if (statusCell) {
+                const statusText = statusCell.textContent.toLowerCase();
+                if (selectedStatus === '' || statusText.includes(selectedStatus)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            }
+        });
+    });
+}
+
+// Sort functionality
+const sortBy = document.getElementById('sortBy');
+if (sortBy) {
+    sortBy.addEventListener('change', function() {
+        const sortField = this.value;
+        const tbody = document.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        
+        rows.sort((a, b) => {
+            let aValue, bValue;
+            
+            switch(sortField) {
+                case 'name':
+                    aValue = a.querySelector('td:nth-child(1)').textContent.trim();
+                    bValue = b.querySelector('td:nth-child(1)').textContent.trim();
+                    break;
+                case 'type':
+                    aValue = a.querySelector('td:nth-child(2)').textContent.trim();
+                    bValue = b.querySelector('td:nth-child(2)').textContent.trim();
+                    break;
+                case 'status':
+                    aValue = a.querySelector('td:nth-child(3)').textContent.trim();
+                    bValue = b.querySelector('td:nth-child(3)').textContent.trim();
+                    break;
+                case 'created_at':
+                    aValue = a.querySelector('td:nth-child(5)').textContent.trim();
+                    bValue = b.querySelector('td:nth-child(5)').textContent.trim();
+                    break;
+                default:
+                    return 0;
+            }
+            
+            return aValue.localeCompare(bValue);
+        });
+        
+        rows.forEach(row => tbody.appendChild(row));
+    });
+}
+
+// Delete modal functionality
+function openDeleteModal(propertyId, propertyName) {
+    document.getElementById('deletePropertyName').textContent = propertyName;
+    document.getElementById('deleteForm').action = `/admin/properties/${propertyId}`;
+    document.getElementById('deleteModal').classList.add('modal-open');
+}
+
+function closeDeleteModal() {
+    document.getElementById('deleteModal').classList.remove('modal-open');
+}
+
+
+</script>
 @endsection 

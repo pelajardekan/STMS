@@ -33,7 +33,7 @@ class RentalRequest extends Model
      */
     public function tenant(): BelongsTo
     {
-        return $this->belongsTo(Tenant::class);
+        return $this->belongsTo(Tenant::class, 'tenant_id', 'tenant_id');
     }
 
     /**
@@ -41,7 +41,7 @@ class RentalRequest extends Model
      */
     public function property(): BelongsTo
     {
-        return $this->belongsTo(Property::class);
+        return $this->belongsTo(Property::class, 'property_id', 'property_id');
     }
 
     /**
@@ -49,7 +49,7 @@ class RentalRequest extends Model
      */
     public function unit(): BelongsTo
     {
-        return $this->belongsTo(Unit::class);
+        return $this->belongsTo(Unit::class, 'unit_id', 'unit_id');
     }
 
     /**
@@ -57,6 +57,6 @@ class RentalRequest extends Model
      */
     public function rental(): HasOne
     {
-        return $this->hasOne(Rental::class);
+        return $this->hasOne(Rental::class, 'rental_request_id', 'rental_request_id');
     }
 }

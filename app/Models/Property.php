@@ -22,7 +22,7 @@ class Property extends Model
      */
     public function units(): HasMany
     {
-        return $this->hasMany(Unit::class);
+        return $this->hasMany(Unit::class, 'property_id', 'property_id');
     }
 
     /**
@@ -30,7 +30,7 @@ class Property extends Model
      */
     public function rentalRequests(): HasMany
     {
-        return $this->hasMany(RentalRequest::class);
+        return $this->hasMany(RentalRequest::class, 'property_id', 'property_id');
     }
 
     /**
@@ -38,7 +38,7 @@ class Property extends Model
      */
     public function bookingRequests(): HasMany
     {
-        return $this->hasMany(BookingRequest::class);
+        return $this->hasMany(BookingRequest::class, 'property_id', 'property_id');
     }
 
     /**
@@ -46,6 +46,6 @@ class Property extends Model
      */
     public function propertyUnitParameters(): HasMany
     {
-        return $this->hasMany(PropertyUnitParameter::class);
+        return $this->hasMany(PropertyUnitParameter::class, 'property_id', 'property_id');
     }
 }

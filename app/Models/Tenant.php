@@ -23,7 +23,7 @@ class Tenant extends Model
      */
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'user_id', 'id');
     }
 
     /**
@@ -31,7 +31,7 @@ class Tenant extends Model
      */
     public function rentalRequests(): HasMany
     {
-        return $this->hasMany(RentalRequest::class);
+        return $this->hasMany(RentalRequest::class, 'tenant_id', 'tenant_id');
     }
 
     /**
@@ -39,6 +39,6 @@ class Tenant extends Model
      */
     public function bookingRequests(): HasMany
     {
-        return $this->hasMany(BookingRequest::class);
+        return $this->hasMany(BookingRequest::class, 'tenant_id', 'tenant_id');
     }
 }

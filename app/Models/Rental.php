@@ -28,7 +28,7 @@ class Rental extends Model
      */
     public function rentalRequest(): BelongsTo
     {
-        return $this->belongsTo(RentalRequest::class);
+        return $this->belongsTo(RentalRequest::class, 'rental_request_id', 'rental_request_id');
     }
 
     /**
@@ -36,6 +36,6 @@ class Rental extends Model
      */
     public function invoices(): HasMany
     {
-        return $this->hasMany(Invoice::class);
+        return $this->hasMany(Invoice::class, 'rental_id', 'rental_id');
     }
 }

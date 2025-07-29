@@ -31,7 +31,7 @@ class Booking extends Model
      */
     public function bookingRequest(): BelongsTo
     {
-        return $this->belongsTo(BookingRequest::class);
+        return $this->belongsTo(BookingRequest::class, 'booking_request_id', 'booking_request_id');
     }
 
     /**
@@ -39,6 +39,6 @@ class Booking extends Model
      */
     public function invoices(): HasMany
     {
-        return $this->hasMany(Invoice::class);
+        return $this->hasMany(Invoice::class, 'booking_id', 'booking_id');
     }
 }

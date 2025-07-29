@@ -53,7 +53,22 @@ class User extends Authenticatable
      */
     public function tenant()
     {
-        return $this->hasOne(Tenant::class);
+        return $this->hasOne(Tenant::class, 'user_id', 'id');
+    }
+
+    /**
+     * Boot method to handle cascade delete
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        // When a user is deleted, also delete their tenant profile
+        static::deleting(function ($user) {
+            if ($user->tenant) {
+                $user->tenant->delete();
+            }
+        });
     }
 
     /**

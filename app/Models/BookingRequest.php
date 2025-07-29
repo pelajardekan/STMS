@@ -34,7 +34,7 @@ class BookingRequest extends Model
      */
     public function tenant(): BelongsTo
     {
-        return $this->belongsTo(Tenant::class);
+        return $this->belongsTo(Tenant::class, 'tenant_id', 'tenant_id');
     }
 
     /**
@@ -42,7 +42,7 @@ class BookingRequest extends Model
      */
     public function property(): BelongsTo
     {
-        return $this->belongsTo(Property::class);
+        return $this->belongsTo(Property::class, 'property_id', 'property_id');
     }
 
     /**
@@ -50,7 +50,7 @@ class BookingRequest extends Model
      */
     public function unit(): BelongsTo
     {
-        return $this->belongsTo(Unit::class);
+        return $this->belongsTo(Unit::class, 'unit_id', 'unit_id');
     }
 
     /**
@@ -58,6 +58,6 @@ class BookingRequest extends Model
      */
     public function booking(): HasOne
     {
-        return $this->hasOne(Booking::class);
+        return $this->hasOne(Booking::class, 'booking_request_id', 'booking_request_id');
     }
 }

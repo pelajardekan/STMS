@@ -48,4 +48,17 @@ class Invoice extends Model
     {
         return $this->hasMany(Payment::class);
     }
+
+    /**
+     * Get the tenant through rental or booking.
+     */
+    public function tenant()
+    {
+        if ($this->rental_id) {
+            return $this->rental->rentalRequest->tenant;
+        } elseif ($this->booking_id) {
+            return $this->booking->bookingRequest->tenant;
+        }
+        return null;
+    }
 }

@@ -22,7 +22,7 @@ class PropertyUnitParameter extends Model
      */
     public function property(): BelongsTo
     {
-        return $this->belongsTo(Property::class);
+        return $this->belongsTo(Property::class, 'property_id', 'property_id');
     }
 
     /**
@@ -30,7 +30,7 @@ class PropertyUnitParameter extends Model
      */
     public function unit(): BelongsTo
     {
-        return $this->belongsTo(Unit::class);
+        return $this->belongsTo(Unit::class, 'unit_id', 'unit_id');
     }
 
     /**
@@ -38,7 +38,7 @@ class PropertyUnitParameter extends Model
      */
     public function pricing(): BelongsTo
     {
-        return $this->belongsTo(Pricing::class);
+        return $this->belongsTo(Pricing::class, 'pricing_id', 'pricing_id');
     }
 
     /**
@@ -46,7 +46,7 @@ class PropertyUnitParameter extends Model
      */
     public function amenity(): BelongsTo
     {
-        return $this->belongsTo(Amenity::class);
+        return $this->belongsTo(Amenity::class, 'amenity_id', 'amenity_id');
     }
 
     /**
@@ -54,6 +54,6 @@ class PropertyUnitParameter extends Model
      */
     public function service(): BelongsTo
     {
-        return $this->belongsTo(Service::class);
+        return $this->belongsTo(Service::class, 'service_id', 'service_id');
     }
 }
