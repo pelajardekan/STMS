@@ -9,37 +9,41 @@ RUN apk add --no-cache \
     git \
     curl \
     libpng-dev \
+    libjpeg-turbo-dev \
+    freetype-dev \
     libxml2-dev \
     zip \
     unzip \
     nodejs \
     npm \
     supervisor \
-    nginx
+    nginx \
+    oniguruma-dev \
+    autoconf \
+    g++ \
+    make
 
-# Install PHP extensions
+# Configure and install PHP extensions
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg
 RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Copy composer files
-COPY composer.json composer.lock ./
+# Copy application files first
+COPY . .
 
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
-# Copy package files
-COPY package.json package-lock.json ./
-
-# Install Node.js dependencies
-RUN npm ci --only=production
-
-# Copy application files
-COPY . .
+# Install Node.js dependencies (including dev dependencies for build)
+RUN npm ci
 
 # Build frontend assets
 RUN npm run build
+
+# Remove dev dependencies to reduce image size
+RUN npm prune --production
 
 # Set permissions
 RUN chown -R www-data:www-data /var/www/html \
