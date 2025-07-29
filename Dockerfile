@@ -61,6 +61,11 @@ RUN cp .env.example .env
 # Generate application key
 RUN php artisan key:generate
 
+# Optimize Laravel for production
+RUN php artisan config:cache \
+    && php artisan route:cache \
+    && php artisan view:cache
+
 # Expose port 80
 EXPOSE 80
 
