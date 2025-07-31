@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\URL;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -19,6 +20,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Force HTTPS URLs when running behind a proxy (Azure App Service)
+        if (request()->header('X-Forwarded-Proto') === 'https' || 
+            request()->header('X-Forwarded-Ssl') === 'on' ||
+            request()->isSecure()) {
+            URL::forceScheme('https');
+        }
     }
 }
