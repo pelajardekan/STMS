@@ -20,8 +20,11 @@ RUN apt-get update && apt-get install -y \
     npm \
     nginx \
     supervisor \
+    default-mysql-client \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip \
+    && pecl install redis \
+    && docker-php-ext-enable redis \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -32,7 +35,13 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 COPY . .
 
 # Install PHP dependencies
-RUN composer install --no-dev --optimize-autoloader --no-interaction
+RUN composer install --optimize-autoloader --no-interaction
+
+# Clear Laravel caches to avoid stale service provider references
+RUN php artisan config:clear || true
+RUN php artisan cache:clear || true
+RUN php artisan route:clear || true
+RUN php artisan view:clear || true
 
 # Install Node.js dependencies and build assets
 RUN npm ci && npm run build && npm prune --production
@@ -70,6 +79,30 @@ RUN echo '#!/bin/bash' > /startup.sh && \
     echo 'if grep -q "APP_KEY=$" .env; then' >> /startup.sh && \
     echo '  echo "Generating Laravel application key..."' >> /startup.sh && \
     echo '  php artisan key:generate' >> /startup.sh && \
+    echo 'fi' >> /startup.sh && \
+    echo '' >> /startup.sh && \
+    echo '# Wait for database to be ready' >> /startup.sh && \
+    echo 'if [ "$DB_CONNECTION" = "mysql" ]; then' >> /startup.sh && \
+    echo '  echo "Waiting for database connection..."' >> /startup.sh && \
+    echo '  until mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" -e "SELECT 1" >/dev/null 2>&1; do' >> /startup.sh && \
+    echo '    echo "Database not ready, waiting..."' >> /startup.sh && \
+    echo '    sleep 2' >> /startup.sh && \
+    echo '  done' >> /startup.sh && \
+    echo '  echo "Database connection established!"' >> /startup.sh && \
+    echo '' >> /startup.sh && \
+    echo '  # Run database migrations' >> /startup.sh && \
+    echo '  echo "Running database migrations..."' >> /startup.sh && \
+    echo '  php artisan migrate --force' >> /startup.sh && \
+    echo '' >> /startup.sh && \
+    echo '  # Run database seeders to create admin user' >> /startup.sh && \
+    echo '  echo "Running database seeders..."' >> /startup.sh && \
+    echo '  # Only seed if no users exist to avoid duplicates' >> /startup.sh && \
+    echo '  USER_COUNT=$(php artisan tinker --execute="echo App\\Models\\User::count();" 2>/dev/null | grep -o "[0-9]*" | tail -1)' >> /startup.sh && \
+    echo '  if [ "${USER_COUNT:-0}" -eq 0 ]; then' >> /startup.sh && \
+    echo '    php artisan db:seed --force' >> /startup.sh && \
+    echo '  else' >> /startup.sh && \
+    echo '    echo "Users already exist, skipping seeding."' >> /startup.sh && \
+    echo '  fi' >> /startup.sh && \
     echo 'fi' >> /startup.sh && \
     echo '' >> /startup.sh && \
     echo '# Clear and optimize Laravel caches' >> /startup.sh && \

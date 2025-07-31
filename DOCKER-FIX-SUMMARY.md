@@ -64,21 +64,62 @@ The final setup uses:
 
 ## Commands to Use
 
-### Build and Run Individual Container
+### Use Docker Compose (Recommended)
+```bash
+# Start all services (app, database, redis)
+docker-compose up -d
+
+# Check status
+docker-compose ps
+
+# View logs
+docker-compose logs -f app
+docker-compose logs -f db
+
+# Stop all services
+docker-compose down
+```
+
+### Use Management Scripts
+**PowerShell (Windows):**
+```powershell
+# Start everything
+.\docker-manage.ps1 -Command start
+
+# Check logs
+.\docker-manage.ps1 -Command logs -Service app
+
+# Stop everything
+.\docker-manage.ps1 -Command stop
+```
+
+**Bash (Linux/Mac):**
+```bash
+# Start everything
+./docker-manage.sh start
+
+# Check logs
+./docker-manage.sh logs app
+
+# Stop everything
+./docker-manage.sh stop
+```
+
+### Build and Run Individual Container (Not Recommended)
 ```bash
 docker build -t stms-app .
 docker run -p 8080:80 stms-app
+# Note: This won't have database connectivity
 ```
 
-### Use Docker Compose (Recommended)
-```bash
-docker-compose up -d
-```
+## Database Setup
+- **Database**: MySQL 8.0
+- **Host**: localhost:3306 (from host machine) or `db:3306` (from app container)
+- **Database Name**: stms
+- **Username**: stms_user
+- **Password**: stms_password
+- **Root Password**: root_password
 
-### Check Container Status
-```bash
-docker-compose ps
-docker-compose logs app
-```
+The database is automatically initialized and migrations run on first startup.
 
 The container now starts successfully and all services run properly without the nginx failures that were occurring before.
