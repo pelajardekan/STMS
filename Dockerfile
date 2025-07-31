@@ -96,13 +96,9 @@ RUN echo '#!/bin/bash' > /startup.sh && \
     echo '' >> /startup.sh && \
     echo '  # Run database seeders to create admin user' >> /startup.sh && \
     echo '  echo "Running database seeders..."' >> /startup.sh && \
-    echo '  # Only seed if no users exist to avoid duplicates' >> /startup.sh && \
-    echo '  USER_COUNT=$(php artisan tinker --execute="echo App\\Models\\User::count();" 2>/dev/null | grep -o "[0-9]*" | tail -1)' >> /startup.sh && \
-    echo '  if [ "${USER_COUNT:-0}" -eq 0 ]; then' >> /startup.sh && \
-    echo '    php artisan db:seed --force' >> /startup.sh && \
-    echo '  else' >> /startup.sh && \
-    echo '    echo "Users already exist, skipping seeding."' >> /startup.sh && \
-    echo '  fi' >> /startup.sh && \
+    echo '  # Always run seeder - it will handle duplicates gracefully' >> /startup.sh && \
+    echo '  php artisan db:seed --force' >> /startup.sh && \
+    echo '  echo "Seeders completed."' >> /startup.sh && \
     echo 'fi' >> /startup.sh && \
     echo '' >> /startup.sh && \
     echo '# Clear and optimize Laravel caches' >> /startup.sh && \

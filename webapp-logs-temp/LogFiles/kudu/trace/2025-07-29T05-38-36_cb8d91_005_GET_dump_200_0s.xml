@@ -1,0 +1,4 @@
+<step title="Incoming Request" date="2025-07-29T05:38:36.557" instance="cb8d91" url="/dump" method="GET" type="request" pid="768,1,15" Host="stms-app.scm.azurewebsites.net" User-Agent="AZURECLI/2.75.0 (MSI)" Accept-Encoding="identity" Authorization="Bas..." x-ms-client-request-id="43df1684-6c3e-11f0-a191-701ab89d0dbf" X-ARR-LOG-ID="43df1684-6c3e-11f0-a191-701ab89d0dbf" CLIENT-IP="202.58.86.29:52828" X-SITE-DEPLOYMENT-ID="stms-app" WAS-DEFAULT-HOSTNAME="stms-app.scm.azurewebsites.net" X-Forwarded-Proto="https" X-AppService-Proto="https" X-Forwarded-TlsVersion="1.3" X-WAWS-Unencoded-URL="/dump" X-Client-IP="202.58.86.29" X-Client-Port="52828" >
+  <step title="Cleanup Xml Logs" date="2025-07-29T05:38:36.565" /><!-- duration: 18ms -->
+  <step title="Outgoing response" date="2025-07-29T05:38:36.835" type="response" statusCode="200" statusText="OK" /><!-- duration: 10ms -->
+</step><!-- duration: 298ms -->
