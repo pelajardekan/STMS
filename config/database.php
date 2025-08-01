@@ -59,6 +59,13 @@ return [
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+                PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => env('MYSQL_ATTR_SSL_VERIFY_SERVER_CERT', false),
+                PDO::MYSQL_ATTR_SSL_CIPHER => 'DHE-RSA-AES256-SHA',
+                PDO::ATTR_EMULATE_PREPARES => true,
+                PDO::ATTR_STRINGIFY_FETCHES => false,
+                // Force SSL connection for Azure MySQL
+                PDO::MYSQL_ATTR_SSL_KEY => null,
+                PDO::MYSQL_ATTR_SSL_CERT => null,
             ]) : [],
         ],
 
