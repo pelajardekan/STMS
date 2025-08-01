@@ -14,10 +14,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'test_login') {
     $password = $_GET['password'] ?? 'password';
     
     try {
+        // Use hardcoded values for testing
         $pdo = new PDO(
-            'mysql:host=' . $_ENV['DB_HOST'] . ';port=' . $_ENV['DB_PORT'] . ';dbname=' . $_ENV['DB_DATABASE'],
-            $_ENV['DB_USERNAME'],
-            $_ENV['DB_PASSWORD'],
+            'mysql:host=stms-mysql-server.mysql.database.azure.com;port=3306;dbname=stms',
+            'stmsadmin',
+            'Stms@2024!',
             [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
         );
         

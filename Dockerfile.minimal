@@ -1,0 +1,82 @@
+FROM php:8.3-fpm
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libxml2-dev \
+    libzip-dev \
+    libonig-dev \
+    zip \
+    unzip \
+    nginx \
+    supervisor
+
+# Configure and install PHP extensions
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) gd \
+    && docker-php-ext-install pdo_mysql mbstring xml zip opcache
+
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Set working directory
+WORKDIR /var/www/html
+
+# Copy application code
+COPY . .
+
+# Install dependencies
+RUN composer install --optimize-autoloader --no-interaction
+
+# Set permissions
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html/storage \
+    && chmod -R 755 /var/www/html/bootstrap/cache
+
+# Setup nginx
+RUN mkdir -p /var/log/nginx /tmp \
+    && chown -R www-data:www-data /var/log/nginx
+
+# Copy configuration files
+COPY docker/nginx.conf /etc/nginx/nginx.conf
+COPY docker/php-fpm.conf /usr/local/etc/php-fpm.d/www.conf
+COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Create a simple .env template
+RUN echo 'APP_NAME=STMS' > /var/www/html/.env.template && \
+    echo 'APP_ENV=production' >> /var/www/html/.env.template && \
+    echo 'APP_KEY=' >> /var/www/html/.env.template && \
+    echo 'APP_DEBUG=false' >> /var/www/html/.env.template && \
+    echo 'APP_URL=https://stms-app.azurewebsites.net' >> /var/www/html/.env.template && \
+    echo '' >> /var/www/html/.env.template && \
+    echo 'DB_CONNECTION=mysql' >> /var/www/html/.env.template && \
+    echo 'DB_HOST=' >> /var/www/html/.env.template && \
+    echo 'DB_PORT=3306' >> /var/www/html/.env.template && \
+    echo 'DB_DATABASE=' >> /var/www/html/.env.template && \
+    echo 'DB_USERNAME=' >> /var/www/html/.env.template && \
+    echo 'DB_PASSWORD=' >> /var/www/html/.env.template && \
+    echo '' >> /var/www/html/.env.template && \
+    echo 'CACHE_DRIVER=file' >> /var/www/html/.env.template && \
+    echo 'SESSION_DRIVER=file' >> /var/www/html/.env.template && \
+    echo 'QUEUE_CONNECTION=sync' >> /var/www/html/.env.template
+
+# Create a simple init script
+RUN echo '#!/bin/bash' > /init.sh && \
+    echo 'cp /var/www/html/.env.template /var/www/html/.env' >> /init.sh && \
+    echo 'sed -i "s/APP_KEY=/APP_KEY=${APP_KEY}/" /var/www/html/.env' >> /init.sh && \
+    echo 'sed -i "s/DB_HOST=/DB_HOST=${DB_HOST}/" /var/www/html/.env' >> /init.sh && \
+    echo 'sed -i "s/DB_DATABASE=/DB_DATABASE=${DB_DATABASE}/" /var/www/html/.env' >> /init.sh && \
+    echo 'sed -i "s/DB_USERNAME=/DB_USERNAME=${DB_USERNAME}/" /var/www/html/.env' >> /init.sh && \
+    echo 'sed -i "s/DB_PASSWORD=/DB_PASSWORD=${DB_PASSWORD}/" /var/www/html/.env' >> /init.sh && \
+    echo '/usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf' >> /init.sh && \
+    chmod +x /init.sh
+
+# Expose port 80
+EXPOSE 80
+
+# Start with our simple init script
+CMD ["/init.sh"]
