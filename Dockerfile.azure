@@ -1,0 +1,170 @@
+# Multi-stage Dockerfile optimized for Azure Container Apps
+FROM php:8.3-fpm as base
+
+# Set working directory
+WORKDIR /var/www/html
+
+# Install system dependencies for Azure Container Apps
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libxml2-dev \
+    libzip-dev \
+    libonig-dev \
+    zip \
+    unzip \
+    nodejs \
+    npm \
+    nginx \
+    supervisor \
+    default-mysql-client \
+    ca-certificates \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Copy composer files first for better layer caching
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
+
+# Copy package files for frontend dependencies
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Copy application source code
+COPY . .
+
+# Build frontend assets
+RUN npm run build
+
+# Clean up node_modules to reduce image size
+RUN rm -rf node_modules
+
+# Create Laravel required directories and set proper permissions for Azure
+RUN mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views \
+    bootstrap/cache \
+    && chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html/storage \
+    && chmod -R 755 /var/www/html/bootstrap/cache \
+    && chmod 755 /var/www/html/artisan
+
+# Create required directories for nginx and logs
+RUN mkdir -p /var/log/nginx /tmp /run/nginx \
+    && chown -R www-data:www-data /var/log/nginx \
+    && touch /var/log/nginx/access.log /var/log/nginx/error.log \
+    && chown www-data:www-data /var/log/nginx/access.log /var/log/nginx/error.log
+
+# Configure nginx for Azure Container Apps
+COPY docker/nginx-azure.conf /etc/nginx/nginx.conf
+
+# Configure PHP-FPM for Azure
+COPY docker/php-fpm-azure.conf /usr/local/etc/php-fpm.d/www.conf
+
+# Configure supervisord for Azure
+COPY docker/supervisord-azure.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Create Azure-optimized startup script
+RUN echo '#!/bin/bash' > /startup-azure.sh && \
+    echo 'set -e' >> /startup-azure.sh && \
+    echo 'echo "Starting STMS application on Azure Container Apps..."' >> /startup-azure.sh && \
+    echo '' >> /startup-azure.sh && \
+    echo '# Set proper timezone' >> /startup-azure.sh && \
+    echo 'export TZ=${TZ:-UTC}' >> /startup-azure.sh && \
+    echo '' >> /startup-azure.sh && \
+    echo '# Copy environment file if not exists' >> /startup-azure.sh && \
+    echo 'if [ ! -f .env ]; then' >> /startup-azure.sh && \
+    echo '  echo "Creating .env file from environment variables..."' >> /startup-azure.sh && \
+    echo '  cp production.env.example .env' >> /startup-azure.sh && \
+    echo '  # Replace placeholders with actual values' >> /startup-azure.sh && \
+    echo '  sed -i "s|your-app.azurewebsites.net|${WEBSITE_HOSTNAME:-localhost}|g" .env' >> /startup-azure.sh && \
+    echo '  sed -i "s|your-mysql-server.mysql.database.azure.com|${DB_HOST}|g" .env' >> /startup-azure.sh && \
+    echo '  sed -i "s|your-secure-password|${DB_PASSWORD}|g" .env' >> /startup-azure.sh && \
+    echo 'fi' >> /startup-azure.sh && \
+    echo '' >> /startup-azure.sh && \
+    echo '# Generate Laravel application key if not set' >> /startup-azure.sh && \
+    echo 'if ! grep -q "APP_KEY=base64:" .env; then' >> /startup-azure.sh && \
+    echo '  echo "Generating Laravel application key..."' >> /startup-azure.sh && \
+    echo '  php artisan key:generate --force' >> /startup-azure.sh && \
+    echo 'fi' >> /startup-azure.sh && \
+    echo '' >> /startup-azure.sh && \
+    echo '# Clear any stale caches' >> /startup-azure.sh && \
+    echo 'php artisan config:clear || true' >> /startup-azure.sh && \
+    echo 'php artisan cache:clear || true' >> /startup-azure.sh && \
+    echo 'php artisan route:clear || true' >> /startup-azure.sh && \
+    echo 'php artisan view:clear || true' >> /startup-azure.sh && \
+    echo '' >> /startup-azure.sh && \
+    echo '# Test database connection and run migrations if connected' >> /startup-azure.sh && \
+    echo 'if [ "$DB_CONNECTION" = "mysql" ]; then' >> /startup-azure.sh && \
+    echo '  echo "Testing database connection..."' >> /startup-azure.sh && \
+    echo '  max_attempts=30' >> /startup-azure.sh && \
+    echo '  attempt=1' >> /startup-azure.sh && \
+    echo '  while [ $attempt -le $max_attempts ]; do' >> /startup-azure.sh && \
+    echo '    if mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" -e "SELECT 1" >/dev/null 2>&1; then' >> /startup-azure.sh && \
+    echo '      echo "Database connection successful!"' >> /startup-azure.sh && \
+    echo '      break' >> /startup-azure.sh && \
+    echo '    else' >> /startup-azure.sh && \
+    echo '      echo "Database connection attempt $attempt/$max_attempts failed, waiting..."' >> /startup-azure.sh && \
+    echo '      sleep 10' >> /startup-azure.sh && \
+    echo '      attempt=$((attempt + 1))' >> /startup-azure.sh && \
+    echo '    fi' >> /startup-azure.sh && \
+    echo '  done' >> /startup-azure.sh && \
+    echo '' >> /startup-azure.sh && \
+    echo '  if [ $attempt -gt $max_attempts ]; then' >> /startup-azure.sh && \
+    echo '    echo "Failed to connect to database after $max_attempts attempts"' >> /startup-azure.sh && \
+    echo '    echo "Continuing without database operations..."' >> /startup-azure.sh && \
+    echo '  else' >> /startup-azure.sh && \
+    echo '    # Run database migrations' >> /startup-azure.sh && \
+    echo '    echo "Running database migrations..."' >> /startup-azure.sh && \
+    echo '    php artisan migrate --force' >> /startup-azure.sh && \
+    echo '    migration_exit_code=$?' >> /startup-azure.sh && \
+    echo '    echo "Migration exit code: $migration_exit_code"' >> /startup-azure.sh && \
+    echo '' >> /startup-azure.sh && \
+    echo '    # Run database seeders only if migrations succeeded' >> /startup-azure.sh && \
+    echo '    if [ $migration_exit_code -eq 0 ]; then' >> /startup-azure.sh && \
+    echo '      echo "Running database seeders..."' >> /startup-azure.sh && \
+    echo '      php artisan db:seed --force --class=AdminUserSeeder' >> /startup-azure.sh && \
+    echo '      seeder_exit_code=$?' >> /startup-azure.sh && \
+    echo '      echo "Seeder exit code: $seeder_exit_code"' >> /startup-azure.sh && \
+    echo '    else' >> /startup-azure.sh && \
+    echo '      echo "Skipping seeders due to migration failure"' >> /startup-azure.sh && \
+    echo '    fi' >> /startup-azure.sh && \
+    echo '  fi' >> /startup-azure.sh && \
+    echo 'fi' >> /startup-azure.sh && \
+    echo '' >> /startup-azure.sh && \
+    echo '# Optimize Laravel for production' >> /startup-azure.sh && \
+    echo 'echo "Optimizing Laravel application..."' >> /startup-azure.sh && \
+    echo 'php artisan config:cache' >> /startup-azure.sh && \
+    echo 'php artisan route:cache' >> /startup-azure.sh && \
+    echo 'php artisan view:cache' >> /startup-azure.sh && \
+    echo '' >> /startup-azure.sh && \
+    echo '# Test configurations before starting services' >> /startup-azure.sh && \
+    echo 'echo "Testing configurations..."' >> /startup-azure.sh && \
+    echo 'nginx -t || exit 1' >> /startup-azure.sh && \
+    echo 'php-fpm -t || exit 1' >> /startup-azure.sh && \
+    echo '' >> /startup-azure.sh && \
+    echo '# Create health check endpoint' >> /startup-azure.sh && \
+    echo 'echo "ready" > /tmp/health' >> /startup-azure.sh && \
+    echo '' >> /startup-azure.sh && \
+    echo 'echo "Starting services with supervisord..."' >> /startup-azure.sh && \
+    echo 'exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf' >> /startup-azure.sh && \
+    chmod +x /startup-azure.sh
+
+# Copy PHP configuration for Azure
+COPY docker/php-azure.ini /usr/local/etc/php/conf.d/azure.ini
+
+# Expose port 8080 (Azure Container Apps default)
+EXPOSE 8080
+
+# Health check for Azure Container Apps
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Start with Azure-optimized script
+CMD ["/startup-azure.sh"]
