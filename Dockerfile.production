@@ -1,0 +1,139 @@
+# Production Dockerfile for STMS Laravel Application
+# Following Azure App Service best practices
+# https://learn.microsoft.com/en-us/azure/mysql/flexible-server/tutorial-php-database-app
+
+# Multi-stage build for optimization
+FROM php:8.3-fpm AS base
+
+# Set working directory
+WORKDIR /var/www/html
+
+# Install system dependencies and PHP extensions
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libxml2-dev \
+    libzip-dev \
+    libonig-dev \
+    zip \
+    unzip \
+    nginx \
+    supervisor \
+    default-mysql-client \
+    ca-certificates \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip opcache \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Copy composer files for dependency installation
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
+
+# Copy application source
+COPY . .
+
+# Complete composer installation
+RUN composer install --no-dev --optimize-autoloader --no-interaction
+
+# Set proper permissions for Laravel
+RUN mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views \
+    bootstrap/cache \
+    && chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html/storage \
+    && chmod -R 755 /var/www/html/bootstrap/cache \
+    && chmod 755 /var/www/html/artisan
+
+# Create required directories for nginx
+RUN mkdir -p /var/log/nginx /run/nginx /tmp \
+    && chown -R www-data:www-data /var/log/nginx \
+    && touch /var/log/nginx/access.log /var/log/nginx/error.log \
+    && chown www-data:www-data /var/log/nginx/access.log /var/log/nginx/error.log
+
+# Configure Nginx for Azure App Service (port 8080)
+COPY docker/nginx-production.conf /etc/nginx/nginx.conf
+
+# Configure PHP-FPM for production
+COPY docker/php-fpm-production.conf /usr/local/etc/php-fpm.d/www.conf
+
+# Configure PHP for production
+COPY docker/php-production.ini /usr/local/etc/php/conf.d/production.ini
+
+# Configure supervisord
+COPY docker/supervisord-azure.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Create startup script for Azure
+RUN echo '#!/bin/bash' > /startup-production.sh && \
+    echo 'set -e' >> /startup-production.sh && \
+    echo '' >> /startup-production.sh && \
+    echo 'echo "Starting STMS Production Application..."' >> /startup-production.sh && \
+    echo '' >> /startup-production.sh && \
+    echo '# Create .env from environment variables' >> /startup-production.sh && \
+    echo 'if [ ! -f .env ] || [ "${FORCE_ENV_REBUILD:-false}" = "true" ]; then' >> /startup-production.sh && \
+    echo '  echo "Creating production .env file..."' >> /startup-production.sh && \
+    echo '  cat > .env << EOF' >> /startup-production.sh && \
+    echo 'APP_NAME=STMS' >> /startup-production.sh && \
+    echo 'APP_ENV=${APP_ENV:-production}' >> /startup-production.sh && \
+    echo 'APP_KEY=${APP_KEY}' >> /startup-production.sh && \
+    echo 'APP_DEBUG=${APP_DEBUG:-false}' >> /startup-production.sh && \
+    echo 'APP_URL=${APP_URL:-https://stms-app.azurewebsites.net}' >> /startup-production.sh && \
+    echo '' >> /startup-production.sh && \
+    echo 'LOG_CHANNEL=stderr' >> /startup-production.sh && \
+    echo 'LOG_LEVEL=info' >> /startup-production.sh && \
+    echo '' >> /startup-production.sh && \
+    echo 'DB_CONNECTION=${DB_CONNECTION:-mysql}' >> /startup-production.sh && \
+    echo 'DB_HOST=${DB_HOST:-stms-mysql-server.mysql.database.azure.com}' >> /startup-production.sh && \
+    echo 'DB_PORT=${DB_PORT:-3306}' >> /startup-production.sh && \
+    echo 'DB_DATABASE=${DB_DATABASE:-stms}' >> /startup-production.sh && \
+    echo 'DB_USERNAME=${DB_USERNAME}' >> /startup-production.sh && \
+    echo 'DB_PASSWORD=${DB_PASSWORD}' >> /startup-production.sh && \
+    echo '' >> /startup-production.sh && \
+    echo 'CACHE_DRIVER=${CACHE_DRIVER:-file}' >> /startup-production.sh && \
+    echo 'SESSION_DRIVER=${SESSION_DRIVER:-file}' >> /startup-production.sh && \
+    echo 'QUEUE_CONNECTION=${QUEUE_CONNECTION:-sync}' >> /startup-production.sh && \
+    echo 'EOF' >> /startup-production.sh && \
+    echo 'fi' >> /startup-production.sh && \
+    echo '' >> /startup-production.sh && \
+    echo '# Clear Laravel caches' >> /startup-production.sh && \
+    echo 'echo "Clearing caches..."' >> /startup-production.sh && \
+    echo 'php artisan config:clear || true' >> /startup-production.sh && \
+    echo 'php artisan cache:clear || true' >> /startup-production.sh && \
+    echo 'php artisan route:clear || true' >> /startup-production.sh && \
+    echo 'php artisan view:clear || true' >> /startup-production.sh && \
+    echo '' >> /startup-production.sh && \
+    echo '# Database operations' >> /startup-production.sh && \
+    echo 'echo "Checking database connection..."' >> /startup-production.sh && \
+    echo 'php artisan migrate:status --no-interaction || echo "Database not available yet"' >> /startup-production.sh && \
+    echo '' >> /startup-production.sh && \
+    echo '# Cache configurations for production' >> /startup-production.sh && \
+    echo 'echo "Caching configurations..."' >> /startup-production.sh && \
+    echo 'php artisan config:cache || true' >> /startup-production.sh && \
+    echo 'php artisan route:cache || true' >> /startup-production.sh && \
+    echo 'php artisan view:cache || true' >> /startup-production.sh && \
+    echo '' >> /startup-production.sh && \
+    echo '# Test nginx and php-fpm configurations' >> /startup-production.sh && \
+    echo 'nginx -t || exit 1' >> /startup-production.sh && \
+    echo 'php-fpm -t || exit 1' >> /startup-production.sh && \
+    echo '' >> /startup-production.sh && \
+    echo '# Create health check' >> /startup-production.sh && \
+    echo 'echo "healthy" > /tmp/health' >> /startup-production.sh && \
+    echo '' >> /startup-production.sh && \
+    echo 'echo "Starting services with supervisord..."' >> /startup-production.sh && \
+    echo 'exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf' >> /startup-production.sh && \
+    chmod +x /startup-production.sh
+
+# Expose port 8080 for Azure App Service
+EXPOSE 8080
+
+# Health check for Azure
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Use production startup script
+CMD ["/startup-production.sh"]

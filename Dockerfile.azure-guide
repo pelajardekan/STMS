@@ -1,0 +1,150 @@
+# Dockerfile following Azure App Service PHP guide
+# https://learn.microsoft.com/en-us/azure/mysql/flexible-server/tutorial-php-database-app
+
+FROM php:8.3-fpm
+
+# Install system dependencies required for Laravel and Azure
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libxml2-dev \
+    libzip-dev \
+    libonig-dev \
+    zip \
+    unzip \
+    nginx \
+    supervisor \
+    default-mysql-client \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Set working directory
+WORKDIR /var/www/html
+
+# Copy application code
+COPY . .
+
+# Install PHP dependencies
+RUN composer install --no-dev --optimize-autoloader --no-interaction
+
+# Set proper permissions for Laravel
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html/storage \
+    && chmod -R 755 /var/www/html/bootstrap/cache
+
+# Create required directories
+RUN mkdir -p /var/log/nginx /run/nginx \
+    && chown -R www-data:www-data /var/log/nginx
+
+# Configure nginx for Azure App Service (port 8080)
+RUN echo 'user www-data;' > /etc/nginx/nginx.conf && \
+    echo 'worker_processes auto;' >> /etc/nginx/nginx.conf && \
+    echo 'pid /run/nginx.pid;' >> /etc/nginx/nginx.conf && \
+    echo '' >> /etc/nginx/nginx.conf && \
+    echo 'events {' >> /etc/nginx/nginx.conf && \
+    echo '    worker_connections 1024;' >> /etc/nginx/nginx.conf && \
+    echo '}' >> /etc/nginx/nginx.conf && \
+    echo '' >> /etc/nginx/nginx.conf && \
+    echo 'http {' >> /etc/nginx/nginx.conf && \
+    echo '    include /etc/nginx/mime.types;' >> /etc/nginx/nginx.conf && \
+    echo '    default_type application/octet-stream;' >> /etc/nginx/nginx.conf && \
+    echo '    sendfile on;' >> /etc/nginx/nginx.conf && \
+    echo '    keepalive_timeout 65;' >> /etc/nginx/nginx.conf && \
+    echo '' >> /etc/nginx/nginx.conf && \
+    echo '    server {' >> /etc/nginx/nginx.conf && \
+    echo '        listen 8080;' >> /etc/nginx/nginx.conf && \
+    echo '        server_name _;' >> /etc/nginx/nginx.conf && \
+    echo '        root /var/www/html/public;' >> /etc/nginx/nginx.conf && \
+    echo '        index index.php index.html;' >> /etc/nginx/nginx.conf && \
+    echo '' >> /etc/nginx/nginx.conf && \
+    echo '        location / {' >> /etc/nginx/nginx.conf && \
+    echo '            try_files $uri $uri/ /index.php?$query_string;' >> /etc/nginx/nginx.conf && \
+    echo '        }' >> /etc/nginx/nginx.conf && \
+    echo '' >> /etc/nginx/nginx.conf && \
+    echo '        location ~ \.php$ {' >> /etc/nginx/nginx.conf && \
+    echo '            fastcgi_pass 127.0.0.1:9000;' >> /etc/nginx/nginx.conf && \
+    echo '            fastcgi_index index.php;' >> /etc/nginx/nginx.conf && \
+    echo '            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;' >> /etc/nginx/nginx.conf && \
+    echo '            include fastcgi_params;' >> /etc/nginx/nginx.conf && \
+    echo '        }' >> /etc/nginx/nginx.conf && \
+    echo '' >> /etc/nginx/nginx.conf && \
+    echo '        location /health {' >> /etc/nginx/nginx.conf && \
+    echo '            access_log off;' >> /etc/nginx/nginx.conf && \
+    echo '            return 200 "healthy\n";' >> /etc/nginx/nginx.conf && \
+    echo '            add_header Content-Type text/plain;' >> /etc/nginx/nginx.conf && \
+    echo '        }' >> /etc/nginx/nginx.conf && \
+    echo '    }' >> /etc/nginx/nginx.conf && \
+    echo '}' >> /etc/nginx/nginx.conf
+
+# Configure PHP-FPM for Azure
+RUN echo '[global]' > /usr/local/etc/php-fpm.d/www.conf && \
+    echo 'pid = /run/php-fpm.pid' >> /usr/local/etc/php-fpm.d/www.conf && \
+    echo '' >> /usr/local/etc/php-fpm.d/www.conf && \
+    echo '[www]' >> /usr/local/etc/php-fpm.d/www.conf && \
+    echo 'user = www-data' >> /usr/local/etc/php-fpm.d/www.conf && \
+    echo 'group = www-data' >> /usr/local/etc/php-fpm.d/www.conf && \
+    echo 'listen = 127.0.0.1:9000' >> /usr/local/etc/php-fpm.d/www.conf && \
+    echo 'pm = dynamic' >> /usr/local/etc/php-fpm.d/www.conf && \
+    echo 'pm.max_children = 5' >> /usr/local/etc/php-fpm.d/www.conf && \
+    echo 'pm.start_servers = 2' >> /usr/local/etc/php-fpm.d/www.conf && \
+    echo 'pm.min_spare_servers = 1' >> /usr/local/etc/php-fpm.d/www.conf && \
+    echo 'pm.max_spare_servers = 3' >> /usr/local/etc/php-fpm.d/www.conf && \
+    echo 'catch_workers_output = yes' >> /usr/local/etc/php-fpm.d/www.conf
+
+# Configure supervisord using the clean Azure configuration
+COPY docker/supervisord-azure.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Create startup script following Azure best practices
+RUN echo '#!/bin/bash' > /startup.sh && \
+    echo 'set -e' >> /startup.sh && \
+    echo '' >> /startup.sh && \
+    echo '# Copy environment variables to .env if not exists' >> /startup.sh && \
+    echo 'if [ ! -f .env ]; then' >> /startup.sh && \
+    echo '  echo "Creating .env file..."' >> /startup.sh && \
+    echo '  echo "APP_NAME=STMS" > .env' >> /startup.sh && \
+    echo '  echo "APP_ENV=${APP_ENV:-production}" >> .env' >> /startup.sh && \
+    echo '  echo "APP_KEY=${APP_KEY}" >> .env' >> /startup.sh && \
+    echo '  echo "APP_DEBUG=${APP_DEBUG:-false}" >> .env' >> /startup.sh && \
+    echo '  echo "APP_URL=${APP_URL:-https://stms-app.azurewebsites.net}" >> .env' >> /startup.sh && \
+    echo '  echo "" >> .env' >> /startup.sh && \
+    echo '  echo "DB_CONNECTION=${DB_CONNECTION:-mysql}" >> .env' >> /startup.sh && \
+    echo '  echo "DB_HOST=${DB_HOST}" >> .env' >> /startup.sh && \
+    echo '  echo "DB_PORT=${DB_PORT:-3306}" >> .env' >> /startup.sh && \
+    echo '  echo "DB_DATABASE=${DB_DATABASE}" >> .env' >> /startup.sh && \
+    echo '  echo "DB_USERNAME=${DB_USERNAME}" >> .env' >> /startup.sh && \
+    echo '  echo "DB_PASSWORD=${DB_PASSWORD}" >> .env' >> /startup.sh && \
+    echo '  echo "" >> .env' >> /startup.sh && \
+    echo '  echo "CACHE_DRIVER=${CACHE_DRIVER:-file}" >> .env' >> /startup.sh && \
+    echo '  echo "SESSION_DRIVER=${SESSION_DRIVER:-file}" >> .env' >> /startup.sh && \
+    echo '  echo "QUEUE_CONNECTION=${QUEUE_CONNECTION:-sync}" >> .env' >> /startup.sh && \
+    echo 'fi' >> /startup.sh && \
+    echo '' >> /startup.sh && \
+    echo '# Clear Laravel caches' >> /startup.sh && \
+    echo 'echo "Clearing Laravel caches..."' >> /startup.sh && \
+    echo 'php artisan config:clear || true' >> /startup.sh && \
+    echo 'php artisan cache:clear || true' >> /startup.sh && \
+    echo 'php artisan route:clear || true' >> /startup.sh && \
+    echo 'php artisan view:clear || true' >> /startup.sh && \
+    echo '' >> /startup.sh && \
+    echo '# Test database connection' >> /startup.sh && \
+    echo 'echo "Testing database connection..."' >> /startup.sh && \
+    echo 'php artisan migrate:status || echo "Migration status check failed, will try migrations later"' >> /startup.sh && \
+    echo '' >> /startup.sh && \
+    echo '# Start supervisord' >> /startup.sh && \
+    echo 'echo "Starting services..."' >> /startup.sh && \
+    echo 'exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf' >> /startup.sh && \
+    chmod +x /startup.sh
+
+# Expose port 8080 as required by Azure App Service
+EXPOSE 8080
+
+# Use the startup script
+CMD ["/startup.sh"]

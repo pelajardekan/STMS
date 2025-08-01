@@ -1,0 +1,101 @@
+# Azure Tutorial Compliant Dockerfile
+# Following: https://learn.microsoft.com/en-us/azure/mysql/flexible-server/tutorial-php-database-app
+
+FROM php:8.3-fpm AS base
+
+# Set working directory
+WORKDIR /var/www/html
+
+# Install system dependencies and PHP extensions required for Laravel
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libxml2-dev \
+    libzip-dev \
+    libonig-dev \
+    zip \
+    unzip \
+    nginx \
+    supervisor \
+    default-mysql-client \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip opcache \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Copy composer files and install dependencies
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
+
+# Copy application code
+COPY . .
+
+# Complete composer installation with scripts
+RUN composer install --no-dev --optimize-autoloader --no-interaction
+
+# Set proper permissions
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html/storage \
+    && chmod -R 755 /var/www/html/bootstrap/cache
+
+# Copy configuration files
+COPY docker/nginx-production.conf /etc/nginx/nginx.conf
+COPY docker/php-fpm-production.conf /usr/local/etc/php-fpm.d/www.conf
+COPY docker/php-production.ini /usr/local/etc/php/conf.d/production.ini
+COPY docker/supervisord-azure.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Create startup script
+RUN echo '#!/bin/bash\n\
+set -e\n\
+echo "Starting STMS Application in Malaysia West..."\n\
+\n\
+# Wait for database to be ready\n\
+echo "Waiting for database connection..."\n\
+for i in {1..30}; do\n\
+    if php artisan migrate:status --no-interaction >/dev/null 2>&1; then\n\
+        echo "Database connection established"\n\
+        break\n\
+    fi\n\
+    echo "Waiting for database... ($i/30)"\n\
+    sleep 2\n\
+done\n\
+\n\
+# Generate Laravel application key if not set\n\
+if [ -z "$APP_KEY" ]; then\n\
+    echo "Generating application key..."\n\
+    php artisan key:generate --no-interaction\n\
+fi\n\
+\n\
+# Run database migrations\n\
+echo "Running database migrations..."\n\
+php artisan migrate --no-interaction --force\n\
+\n\
+# Cache configurations for production\n\
+echo "Caching configurations..."\n\
+php artisan config:cache\n\
+php artisan route:cache\n\
+php artisan view:cache\n\
+\n\
+# Create health check file\n\
+echo "healthy" > /tmp/health\n\
+\n\
+echo "STMS Application ready in Malaysia West!"\n\
+# Start supervisord\n\
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf' > /startup.sh \
+    && chmod +x /startup.sh
+
+# Expose port 8080 for Azure App Service
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Use the startup script
+CMD ["/startup.sh"]
