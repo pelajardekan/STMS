@@ -1,0 +1,107 @@
+# Multi-stage build for STMS on Azure App Service
+# Optimized for Malaysia West deployment
+
+FROM composer:latest AS composer
+WORKDIR /app
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
+
+FROM php:8.3-fpm AS base
+
+# Set working directory
+WORKDIR /var/www/html
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libxml2-dev \
+    libzip-dev \
+    libonig-dev \
+    zip \
+    unzip \
+    nginx \
+    supervisor \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo pdo_mysql mbstring exif pcntl bcmath gd zip xml \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Copy Composer from composer stage
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Copy composer files first for better caching
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
+
+# Copy application code
+COPY . .
+
+# Run composer install again to run scripts
+RUN composer install --no-dev --optimize-autoloader --no-interaction
+
+# Set proper permissions
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html/storage \
+    && chmod -R 755 /var/www/html/bootstrap/cache
+
+# Copy configuration files
+COPY docker/nginx-production.conf /etc/nginx/nginx.conf
+COPY docker/php-fpm-production.conf /usr/local/etc/php-fpm.d/www.conf
+COPY docker/php-production.ini /usr/local/etc/php/conf.d/production.ini
+
+# Create a simpler supervisord configuration
+RUN echo '[supervisord]\n\
+nodaemon=true\n\
+logfile=/var/log/supervisor/supervisord.log\n\
+pidfile=/var/run/supervisord.pid\n\
+\n\
+[program:nginx]\n\
+command=nginx -g "daemon off;"\n\
+autostart=true\n\
+autorestart=true\n\
+stderr_logfile=/var/log/nginx/error.log\n\
+stdout_logfile=/var/log/nginx/access.log\n\
+\n\
+[program:php-fpm]\n\
+command=php-fpm\n\
+autostart=true\n\
+autorestart=true\n\
+stderr_logfile=/var/log/php-fpm.log\n\
+stdout_logfile=/var/log/php-fpm.log' > /etc/supervisor/conf.d/supervisord.conf
+
+# Create a simple startup script
+RUN echo '#!/bin/bash\n\
+set -e\n\
+echo "Starting STMS Application..."\n\
+\n\
+# Wait for database (if needed)\n\
+echo "Checking database connection..."\n\
+until php artisan migrate:status 2>/dev/null; do\n\
+    echo "Waiting for database..."\n\
+    sleep 5\n\
+done\n\
+\n\
+echo "Running migrations..."\n\
+php artisan migrate --force\n\
+\n\
+echo "Optimizing application..."\n\
+php artisan config:cache\n\
+php artisan route:cache\n\
+php artisan view:cache\n\
+\n\
+echo "Starting services..."\n\
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf' > /startup.sh \
+    && chmod +x /startup.sh
+
+# Expose port 8080 for Azure App Service
+EXPOSE 8080
+
+# Simple health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/ || exit 1
+
+# Use the startup script
+CMD ["/startup.sh"]

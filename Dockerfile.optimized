@@ -1,0 +1,150 @@
+# ==========================================
+# Multi-stage Dockerfile for Laravel PHP 8.3.23
+# Following Azure App Service Best Practices
+# ==========================================
+
+# Stage 1: Builder Environment
+FROM php:8.3-fpm-alpine3.17 AS builder
+
+# Install system dependencies for build
+RUN apk add --no-cache \
+    git \
+    curl \
+    bash \
+    freetype-dev \
+    g++ \
+    gcc \
+    gcompat \
+    icu-dev \
+    icu-libs \
+    libc-dev \
+    libzip-dev \
+    make \
+    nodejs-current \
+    npm \
+    oniguruma-dev \
+    yarn \
+    openssh-client \
+    rsync \
+    zlib-dev
+
+# Add docker-php-extension-installer for easier PHP extension management
+ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+RUN chmod +x /usr/local/bin/install-php-extensions
+
+# Install PHP extensions needed for Laravel
+RUN install-php-extensions \
+    @composer \
+    redis-stable \
+    bcmath \
+    calendar \
+    exif \
+    gd \
+    intl \
+    pdo_mysql \
+    pcntl \
+    soap \
+    zip \
+    opcache
+
+# Set working directory
+WORKDIR /var/www/html
+
+# Copy composer files first for better Docker layer caching
+COPY composer.json composer.lock ./
+
+# Install Composer dependencies (production only for smaller image)
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress --prefer-dist --no-scripts
+
+# Copy application files
+COPY . .
+
+# Complete composer install with scripts
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress --prefer-dist
+
+    # Install Node.js dependencies (including dev deps for build) and build assets
+    RUN npm ci && npm run build
+    
+    # Clear Laravel caches to avoid stale configurations in image
+RUN php artisan config:clear || true && \
+    php artisan cache:clear || true && \
+    php artisan route:clear || true && \
+    php artisan view:clear || true
+
+# ==========================================
+# Stage 2: Production Environment
+# ==========================================
+FROM php:8.3-fpm-alpine3.17
+
+# Install only runtime system dependencies
+RUN apk add --no-cache \
+    bash \
+    curl \
+    freetype-dev \
+    gcompat \
+    icu-dev \
+    icu-libs \
+    libc-dev \
+    libzip-dev \
+    mysql-client \
+    nginx \
+    oniguruma-dev \
+    openssh-server \
+    supervisor \
+    zlib-dev
+
+# Add docker-php-extension-installer
+ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+RUN chmod +x /usr/local/bin/install-php-extensions
+
+# Install only necessary PHP extensions for runtime
+RUN install-php-extensions \
+    redis-stable \
+    bcmath \
+    calendar \
+    exif \
+    gd \
+    intl \
+    pdo_mysql \
+    pcntl \
+    soap \
+    zip \
+    opcache
+
+# Set working directory
+WORKDIR /var/www/html
+
+# Copy application code from builder stage
+COPY --from=builder --chown=www-data:www-data /var/www/html /var/www/html
+
+# Create directories and set permissions
+RUN mkdir -p /var/log/nginx /var/log/supervisor /run/nginx /var/run/php \
+    && chown -R www-data:www-data /var/www/html /var/log/nginx /var/log/supervisor /run/nginx /var/run/php \
+    && chmod -R 755 /var/www/html/storage /var/www/html/bootstrap/cache
+
+# ==========================================
+# Copy Configuration Files
+# ==========================================
+
+# Copy optimized configuration files
+COPY docker-configs/nginx.conf /etc/nginx/nginx.conf
+COPY docker-configs/php-fpm.conf /usr/local/etc/php-fpm.d/www.conf
+COPY docker-configs/production.ini /usr/local/etc/php/conf.d/production.ini
+COPY docker-configs/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker-configs/sshd_config /etc/ssh/sshd_config
+COPY docker-configs/start.sh /usr/local/bin/start.sh
+
+# Set executable permissions and SSH setup
+RUN chmod +x /usr/local/bin/start.sh \
+    && echo "root:Docker!" | chpasswd \
+    && ssh-keygen -A
+
+# Expose ports
+EXPOSE 80 2222
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost/health || exit 1
+
+# Set startup command
+CMD ["/usr/local/bin/start.sh"]

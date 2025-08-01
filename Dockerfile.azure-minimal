@@ -1,0 +1,87 @@
+# Minimal working Dockerfile for STMS Azure deployment
+
+FROM php:8.3-fpm
+
+# Set working directory
+WORKDIR /var/www/html
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libxml2-dev \
+    libzip-dev \
+    libonig-dev \
+    zip \
+    unzip \
+    nginx \
+    supervisor \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo pdo_mysql mbstring exif pcntl bcmath gd zip xml \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Copy Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Copy composer files and install dependencies
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
+
+# Copy application code
+COPY . .
+
+# Run composer install again to run scripts
+RUN composer install --no-dev --optimize-autoloader --no-interaction
+
+# Set proper permissions
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html/storage \
+    && chmod -R 755 /var/www/html/bootstrap/cache
+
+# Copy configuration files
+COPY docker/nginx-production.conf /etc/nginx/nginx.conf
+COPY docker/php-fpm-production.conf /usr/local/etc/php-fpm.d/www.conf
+COPY docker/php-production.ini /usr/local/etc/php/conf.d/production.ini
+
+# Create supervisord configuration
+RUN echo '[supervisord]\n\
+nodaemon=true\n\
+logfile=/var/log/supervisor/supervisord.log\n\
+pidfile=/var/run/supervisord.pid\n\
+\n\
+[program:nginx]\n\
+command=nginx -g "daemon off;"\n\
+autostart=true\n\
+autorestart=true\n\
+stderr_logfile=/var/log/nginx/error.log\n\
+stdout_logfile=/var/log/nginx/access.log\n\
+\n\
+[program:php-fpm]\n\
+command=php-fpm\n\
+autostart=true\n\
+autorestart=true\n\
+stderr_logfile=/var/log/php-fpm.log\n\
+stdout_logfile=/var/log/php-fpm.log' > /etc/supervisor/conf.d/supervisord.conf
+
+# Create startup script that doesn't hang
+RUN echo '#!/bin/bash\n\
+set -e\n\
+echo "Starting STMS Application..."\n\
+\n\
+# Optimize Laravel without hanging\n\
+php artisan config:cache || echo "Config cache failed"\n\
+php artisan route:cache || echo "Route cache failed"\n\
+php artisan view:cache || echo "View cache failed"\n\
+\n\
+echo "Starting supervisord..."\n\
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf' > /startup.sh \
+    && chmod +x /startup.sh
+
+# Expose port 8080 for Azure App Service
+EXPOSE 8080
+
+# Use the startup script
+CMD ["/startup.sh"]
