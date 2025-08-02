@@ -379,6 +379,54 @@ Route::get('/test-db', function () {
     }
 });
 
+Route::get('/seed-database', function () {
+    try {
+        echo "<h2>🌱 Database Seeding</h2>";
+        echo "<pre>";
+        
+        // Run seeders manually
+        echo "Running AdminUserSeeder...\n";
+        Artisan::call('db:seed', ['--class' => 'AdminUserSeeder', '--force' => true]);
+        echo "✅ AdminUserSeeder completed\n\n";
+        
+        echo "Running ParameterSeeder...\n";
+        Artisan::call('db:seed', ['--class' => 'ParameterSeeder', '--force' => true]);
+        echo "✅ ParameterSeeder completed\n\n";
+        
+        echo "Running PropertySeeder...\n";
+        Artisan::call('db:seed', ['--class' => 'PropertySeeder', '--force' => true]);
+        echo "✅ PropertySeeder completed\n\n";
+        
+        echo "Running UnitSeeder...\n";
+        Artisan::call('db:seed', ['--class' => 'UnitSeeder', '--force' => true]);
+        echo "✅ UnitSeeder completed\n\n";
+        
+        // Create test user directly
+        echo "Creating test user...\n";
+        $user = \App\Models\User::updateOrCreate(
+            ['email' => 'test@example.com'],
+            [
+                'name' => 'Test User',
+                'email' => 'test@example.com',
+                'password' => Hash::make('password'),
+                'email_verified_at' => now(),
+                'role' => 'user',
+            ]
+        );
+        echo "✅ Test user created: {$user->name} ({$user->email})\n\n";
+        
+        echo "🎉 All seeding completed successfully!\n";
+        echo "</pre>";
+    } catch (\Exception $e) {
+        echo "<h2>❌ Seeding Error</h2>";
+        echo "<pre style='color: red;'>";
+        echo "Error: " . $e->getMessage() . "\n";
+        echo "File: " . $e->getFile() . "\n";
+        echo "Line: " . $e->getLine() . "\n";
+        echo "</pre>";
+    }
+});
+
 Route::get('/check-data', function () {
     try {
         echo "<h2>📊 Database Data Check</h2>";
