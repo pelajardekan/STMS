@@ -8,35 +8,21 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
-    
     steps:
+    
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Azure Login
+    - name: Azure login
       uses: azure/login@v2
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
-        
+
     - name: Azure CLI script
       run: |
         az account show
-        
-    - name: Verify Azure Login
-      run: |
-        echo "🔐 Verifying Azure authentication..."
-        if [[ "${{ steps.azure_login.outcome }}" == "success" ]]; then
-          echo "✅ Service Principal authentication successful"
-        else
-          echo "❌ Authentication failed"
-          echo "📋 Please check your AZURE_CREDENTIALS secret configuration"
-          exit 1
-        fi
-        
-        az account show
-        az account list --output table
         
     - name: Build Docker image
       run: |
