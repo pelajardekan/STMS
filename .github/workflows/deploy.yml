@@ -27,37 +27,23 @@ jobs:
         echo "Environment: ${{ github.event_name }}"
         echo "Repository: ${{ github.repository }}"
         echo "Branch: ${{ github.ref_name }}"
-        echo "Tenant ID length: ${{ length(secrets.AZURE_TENANT_ID) }}"
-        echo "Client ID length: ${{ length(secrets.AZURE_CLIENT_ID) }}"
-        echo "Subscription ID length: ${{ length(secrets.AZURE_SUBSCRIPTION_ID) }}"
+        echo "AZURE_CREDENTIALS available: ${{ secrets.AZURE_CREDENTIALS != '' }}"
+        echo "AZURE_CREDENTIALS length: ${{ length(secrets.AZURE_CREDENTIALS) }}"
         
-    - name: Azure Login
-      uses: azure/login@v2
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      continue-on-error: true
-      id: azure_login_oidc
-        
-    - name: Fallback Azure Login (Service Principal)
-      if: steps.azure_login_oidc.outcome == 'failure'
+    - name: Azure Login (Service Principal)
       uses: azure/login@v2
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
-      continue-on-error: true
-      id: azure_login_fallback
+      id: azure_login
         
     - name: Verify Azure Login
       run: |
         echo "🔐 Verifying Azure authentication..."
-        if [[ "${{ steps.azure_login_oidc.outcome }}" == "success" ]]; then
-          echo "✅ OIDC authentication successful"
-        elif [[ "${{ steps.azure_login_fallback.outcome }}" == "success" ]]; then
-          echo "✅ Service Principal authentication successful (fallback)"
+        if [[ "${{ steps.azure_login.outcome }}" == "success" ]]; then
+          echo "✅ Service Principal authentication successful"
         else
-          echo "❌ All authentication methods failed"
-          echo "📋 Please check your GitHub secrets configuration"
+          echo "❌ Authentication failed"
+          echo "📋 Please check your AZURE_CREDENTIALS secret configuration"
           exit 1
         fi
         
