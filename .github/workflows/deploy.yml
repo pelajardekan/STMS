@@ -15,30 +15,14 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Debug Authentication Environment
-      run: |
-        echo "🔍 SIMPLE DEBUG TEST"
-        echo "Environment: ${{ github.event_name }}"
-        echo "Repository: ${{ github.repository }}"
-        echo "Branch: ${{ github.ref_name }}"
-        
-        echo "🔍 Validating individual secrets..."
-        echo "AZURE_CLIENT_ID available: ${{ secrets.AZURE_CLIENT_ID != '' }}"
-        echo "AZURE_CLIENT_SECRET available: ${{ secrets.AZURE_CLIENT_SECRET != '' }}"
-        echo "AZURE_TENANT_ID available: ${{ secrets.AZURE_TENANT_ID != '' }}"
-        echo "AZURE_SUBSCRIPTION_ID available: ${{ secrets.AZURE_SUBSCRIPTION_ID != '' }}"
-        
-    - name: Azure Login (Service Principal)
-      uses: azure/login@v1
+    - name: Azure Login
+      uses: azure/login@v2
       with:
-        creds: |
-          {
-            "clientId": "${{ secrets.AZURE_CLIENT_ID }}",
-            "clientSecret": "${{ secrets.AZURE_CLIENT_SECRET }}",
-            "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}",
-            "tenantId": "${{ secrets.AZURE_TENANT_ID }}"
-          }
-      id: azure_login
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+        
+    - name: Azure CLI script
+      run: |
+        az account show
         
     - name: Verify Azure Login
       run: |
