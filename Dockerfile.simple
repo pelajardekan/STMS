@@ -102,9 +102,5 @@ RUN echo '#!/bin/bash' > /startup.sh && \
 # Expose port 80
 EXPOSE 80
 
-# Add health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost/health || exit 1
-
 # Start with our custom startup script
 CMD ["/startup.sh"]

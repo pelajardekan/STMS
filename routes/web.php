@@ -379,6 +379,38 @@ Route::get('/test-db', function () {
     }
 });
 
+Route::get('/check-data', function () {
+    try {
+        echo "<h2>📊 Database Data Check</h2>";
+        echo "<pre>";
+        
+        // Check users table
+        $userCount = DB::table('users')->count();
+        echo "Users: $userCount\n";
+        
+        if ($userCount > 0) {
+            $users = DB::table('users')->select('id', 'name', 'email', 'role')->get();
+            foreach ($users as $user) {
+                echo "  - {$user->name} ({$user->email}) - Role: {$user->role}\n";
+            }
+        }
+        
+        // Check other key tables
+        $tables = ['tenants', 'properties', 'units', 'services', 'amenities'];
+        foreach ($tables as $table) {
+            $count = DB::table($table)->count();
+            echo "{$table}: $count records\n";
+        }
+        
+        echo "</pre>";
+    } catch (\Exception $e) {
+        echo "<h2>❌ Data Check Error</h2>";
+        echo "<pre style='color: red;'>";
+        echo "Error: " . $e->getMessage() . "\n";
+        echo "</pre>";
+    }
+});
+
 
 
 
