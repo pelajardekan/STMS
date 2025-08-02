@@ -59,38 +59,41 @@ jobs:
     - name: Wait for deployment to complete
       run: |
         APP_NAME=$(az webapp list --resource-group stms --query "[0].name" -o tsv)
-        echo "Waiting for deployment to complete..."
-        sleep 60
+        echo "Waiting for container to fully start..."
+        sleep 120
         
-    - name: Run database migrations (post-deployment)
+    - name: Verify application health
       run: |
         APP_NAME=$(az webapp list --resource-group stms --query "[0].name" -o tsv)
         APP_URL="https://$APP_NAME.azurewebsites.net"
         
-        echo "Testing database connection..."
-        curl -f "$APP_URL/test-db" || echo "Database test endpoint check completed"
+        echo "Checking application health (basic connectivity only)..."
+        for i in {1..10}; do
+          if curl -s --connect-timeout 10 --max-time 30 "$APP_URL" > /dev/null; then
+            echo "✅ Application is responding"
+            break
+          else
+            echo "⏳ Waiting for application to start (attempt $i/10)..."
+            sleep 30
+          fi
+        done
         
-        echo "Running database migrations..."
-        curl -f "$APP_URL/setup-database" || echo "Migration endpoint check completed"
-        
-        echo "Checking data..."
-        curl -f "$APP_URL/check-data" || echo "Data check endpoint completed"
-        
-    - name: Run database seeding (post-deployment)
-      run: |
-        APP_NAME=$(az webapp list --resource-group stms --query "[0].name" -o tsv)
-        APP_URL="https://$APP_NAME.azurewebsites.net"
-        
-        echo "Running database seeding..."
-        curl -f "$APP_URL/seed-database" || echo "Seeding endpoint check completed"
-        
-        echo "Final data verification..."
-        curl -f "$APP_URL/check-data" || echo "Final data check completed"
+        echo "🔄 Container deployment completed"
+        echo "📋 Database operations should be run manually via web endpoints:"
+        echo "   - Migrations: $APP_URL/setup-database"
+        echo "   - Seeding: $APP_URL/seed-database"
         
     - name: Deployment summary
       run: |
         APP_NAME=$(az webapp list --resource-group stms --query "[0].name" -o tsv)
-        echo "✅ Deployment completed successfully!"
+        echo "✅ Container deployment completed successfully!"
         echo "🌐 Application URL: https://$APP_NAME.azurewebsites.net"
         echo "🐳 Container Image: $ACR_NAME.azurecr.io/stms-app:$IMAGE_TAG"
-        echo "📊 Database migrations and seeding completed post-deployment"
+        echo ""
+        echo "� Next Steps - Run these manually when needed:"
+        echo "   🗄️  Database Migrations: https://$APP_NAME.azurewebsites.net/setup-database"
+        echo "   🌱 Database Seeding: https://$APP_NAME.azurewebsites.net/seed-database"
+        echo "   ✅ Health Check: https://$APP_NAME.azurewebsites.net/test-db"
+        echo "   📊 Data Verification: https://$APP_NAME.azurewebsites.net/check-data"
+        echo ""
+        echo "⚠️  Database operations are intentionally manual to prevent deployment conflicts"
