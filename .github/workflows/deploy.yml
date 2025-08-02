@@ -1,4 +1,4 @@
-name: Azure Login Test
+name: Azure Login Minimal
 
 on: [push]
 
