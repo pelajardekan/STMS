@@ -10,7 +10,6 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: production
     
     steps:
     - name: Checkout code
@@ -18,40 +17,16 @@ jobs:
       
     - name: Debug Authentication Environment
       run: |
-        echo "🔍 Checking authentication environment..."
+        echo "🔍 SIMPLE DEBUG TEST"
         echo "Environment: ${{ github.event_name }}"
         echo "Repository: ${{ github.repository }}"
         echo "Branch: ${{ github.ref_name }}"
-        echo "AZURE_CREDENTIALS available: ${{ secrets.AZURE_CREDENTIALS != '' }}"
-        echo "AZURE_CREDENTIALS length: ${{ length(secrets.AZURE_CREDENTIALS) }}"
         
-        echo ""
-        echo "📋 Required AZURE_CREDENTIALS JSON format:"
-        echo '{'
-        echo '  "clientId": "your-service-principal-client-id",'
-        echo '  "clientSecret": "your-service-principal-client-secret",'
-        echo '  "subscriptionId": "your-subscription-id",'
-        echo '  "tenantId": "your-tenant-id"'
-        echo '}'
-        echo ""
-        echo "⚠️  Note: Field names must be exact (clientId, not client-id)"
-        
-        # Parse and validate the AZURE_CREDENTIALS JSON structure
         echo "🔍 Validating individual secrets..."
         echo "AZURE_CLIENT_ID available: ${{ secrets.AZURE_CLIENT_ID != '' }}"
         echo "AZURE_CLIENT_SECRET available: ${{ secrets.AZURE_CLIENT_SECRET != '' }}"
         echo "AZURE_TENANT_ID available: ${{ secrets.AZURE_TENANT_ID != '' }}"
         echo "AZURE_SUBSCRIPTION_ID available: ${{ secrets.AZURE_SUBSCRIPTION_ID != '' }}"
-        
-        echo "AZURE_CLIENT_ID length: ${{ length(secrets.AZURE_CLIENT_ID) }}"
-        echo "AZURE_CLIENT_SECRET length: ${{ length(secrets.AZURE_CLIENT_SECRET) }}"
-        echo "AZURE_TENANT_ID length: ${{ length(secrets.AZURE_TENANT_ID) }}"
-        echo "AZURE_SUBSCRIPTION_ID length: ${{ length(secrets.AZURE_SUBSCRIPTION_ID) }}"
-        
-        # Test the constructed JSON
-        CONSTRUCTED_JSON='{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}"}'
-        echo "🔍 Constructed JSON validation:"
-        echo "$CONSTRUCTED_JSON" | jq . || echo "❌ Constructed JSON is invalid"
         
     - name: Azure Login (Service Principal)
       uses: azure/login@v1
