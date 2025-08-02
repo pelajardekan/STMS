@@ -1,28 +1,59 @@
-name: Azure Login Minimal
+name: Deploy STMS to Azure
 
-on: [push]
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+    
+    - uses: actions/checkout@v4
+      
+    - uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Azure CLI script
-        uses: azure/cli@v2
-        with:
-          azcliversion: latest
-          inlineScript: |
-            az account show
-        echo ""
-        echo "� Next Steps - Run these manually when needed:"
-        echo "   🗄️  Database Migrations: https://$APP_NAME.azurewebsites.net/setup-database"
-        echo "   🌱 Database Seeding: https://$APP_NAME.azurewebsites.net/seed-database"
-        echo "   ✅ Health Check: https://$APP_NAME.azurewebsites.net/test-db"
-        echo "   📊 Data Verification: https://$APP_NAME.azurewebsites.net/check-data"
-        echo ""
-        echo "⚠️  Database operations are intentionally manual to prevent deployment conflicts"
+    - name: Test Azure Connection
+      uses: azure/cli@v2
+      with:
+        azcliversion: latest
+        inlineScript: |
+          az account show
+          echo "✅ Azure authentication successful!"
+        
+    - name: Build Docker image
+      run: |
+        docker build -f Dockerfile.simple -t stms-app:latest .
+        
+    - name: Get ACR and push image
+      uses: azure/cli@v2
+      with:
+        azcliversion: latest
+        inlineScript: |
+          ACR_NAME=$(az acr list --resource-group stms --query "[0].name" -o tsv)
+          echo "ACR_NAME=$ACR_NAME" >> $GITHUB_ENV
+          az acr login --name $ACR_NAME
+          
+          IMAGE_TAG="v$(date +%Y%m%d%H%M%S)"
+          docker tag stms-app:latest $ACR_NAME.azurecr.io/stms-app:$IMAGE_TAG
+          docker tag stms-app:latest $ACR_NAME.azurecr.io/stms-app:latest
+          docker push $ACR_NAME.azurecr.io/stms-app:$IMAGE_TAG
+          docker push $ACR_NAME.azurecr.io/stms-app:latest
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+        
+    - name: Deploy to App Service
+      uses: azure/cli@v2
+      with:
+        azcliversion: latest
+        inlineScript: |
+          APP_NAME=$(az webapp list --resource-group stms --query "[0].name" -o tsv)
+          az webapp config container set \
+            --name $APP_NAME \
+            --resource-group stms \
+            --container-image-name $ACR_NAME.azurecr.io/stms-app:$IMAGE_TAG
+          
+          echo "✅ Deployment completed!"
+          echo "🌐 Application URL: https://$APP_NAME.azurewebsities.net"
