@@ -1,190 +1,23 @@
-name: Deploy STMS to Azure
+name: Azure Login Test
 
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:
+on: [push]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-    
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - uses: azure/login@v2
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - uses: actions/checkout@v4
 
-    - name: Azure CLI script
-      uses: azure/cli@v2
-      with:
-        azcliversion: latest
-        inlineScript: |
-          az account show
-        
-    - name: Build Docker image
-      run: |
-        docker build -f Dockerfile.simple -t stms-app:latest .
-        
-    - name: Deploy infrastructure
-      run: |
-        # Since we already have infrastructure, we'll skip this step
-        # Infrastructure is already deployed with resource group 'stms'
-        echo "Infrastructure already exists"
-        
-    - name: Get ACR name and login
-      uses: azure/cli@v2
-      with:
-        azcliversion: latest
-        inlineScript: |
-          ACR_NAME=$(az acr list --resource-group stms --query "[0].name" -o tsv)
-          echo "ACR_NAME=$ACR_NAME" >> $GITHUB_ENV
-          az acr login --name $ACR_NAME
-        
-    - name: Tag and push image to ACR
-      run: |
-        IMAGE_TAG="v$(date +%Y%m%d%H%M%S)"
-        docker tag stms-app:latest $ACR_NAME.azurecr.io/stms-app:$IMAGE_TAG
-        docker tag stms-app:latest $ACR_NAME.azurecr.io/stms-app:latest
-        docker push $ACR_NAME.azurecr.io/stms-app:$IMAGE_TAG
-        docker push $ACR_NAME.azurecr.io/stms-app:latest
-        echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
-        
-    - name: Deploy to Azure App Service
-      uses: azure/cli@v2
-      with:
-        azcliversion: latest
-        inlineScript: |
-          APP_NAME=$(az webapp list --resource-group stms --query "[0].name" -o tsv)
-          az webapp config container set \
-            --name $APP_NAME \
-            --resource-group stms \
-            --container-image-name $ACR_NAME.azurecr.io/stms-app:$IMAGE_TAG
-        
-    - name: Wait for deployment to complete
-      run: |
-        echo "Waiting for container to fully start..."
-        sleep 120
-        
-    - name: Verify application health
-      run: |
-        APP_NAME=$(az webapp list --resource-group stms --query "[0].name" -o tsv)
-        APP_URL="https://$APP_NAME.azurewebsites.net"
-        
-        echo "Checking application health..."
-        for i in {1..10}; do
-          if curl -s --connect-timeout 10 --max-time 30 "$APP_URL" > /dev/null; then
-            echo "✅ Application is responding"
-            break
-          else
-            echo "⏳ Waiting for application to start (attempt $i/10)..."
-            sleep 30
-          fi
-        done
-        
-    - name: Check Database Connectivity
-      uses: azure/cli@v2
-      with:
-        azcliversion: latest
-        inlineScript: |
-          APP_NAME=$(az webapp list --resource-group stms --query "[0].name" -o tsv)
-          echo "🔌 Checking database connectivity..."
-          
-          # Wait additional time for database connections to be ready
-          sleep 15
-          
-          # Test database connection
-          az webapp ssh --resource-group stms --name $APP_NAME --command "cd /var/www/html && php artisan tinker --execute='DB::connection()->getPdo(); echo \"Database connected successfully\";'" || {
-            echo "⚠️ Database connection test failed, but continuing with migrations..."
-          }
-        
-    - name: Run Laravel Migrations via Azure CLI
-      uses: azure/cli@v2
-      with:
-        azcliversion: latest
-        inlineScript: |
-          APP_NAME=$(az webapp list --resource-group stms --query "[0].name" -o tsv)
-          echo "🔄 Running Laravel migrations..."
-          
-          # Wait a bit more to ensure container is fully ready
-          sleep 30
-          
-          # Check if we can access the container and find artisan
-          echo "📍 Locating artisan file..."
-          if ! az webapp ssh --resource-group stms --name $APP_NAME --command "test -f /var/www/html/artisan"; then
-            echo "❌ Could not find artisan file at /var/www/html/artisan"
-            echo "🔍 Listing container contents..."
-            az webapp ssh --resource-group stms --name $APP_NAME --command "ls -la /var/www/html/" || true
-            exit 1
-          fi
-          
-          echo "📍 Found artisan at /var/www/html/artisan"
-          
-          # Check current migration status
-          echo "📊 Checking current migration status..."
-          az webapp ssh --resource-group stms --name $APP_NAME --command "cd /var/www/html && php artisan migrate:status" || {
-            echo "⚠️ Could not check migration status, proceeding with migration..."
-          }
-          
-          # Run migrations
-          echo "🚀 Executing migrations..."
-          if az webapp ssh --resource-group stms --name $APP_NAME --command "cd /var/www/html && php artisan migrate --force"; then
-            echo "✅ Database migrations completed successfully"
-          else
-            echo "❌ Migration failed"
-            echo "🔍 Checking Laravel logs..."
-            az webapp ssh --resource-group stms --name $APP_NAME --command "cd /var/www/html && tail -50 storage/logs/laravel.log" || true
-            exit 1
-          fi
-        
-    - name: Run Laravel Database Seeding via Azure CLI
-      uses: azure/cli@v2
-      with:
-        azcliversion: latest
-        inlineScript: |
-          APP_NAME=$(az webapp list --resource-group stms --query "[0].name" -o tsv)
-          echo "🌱 Running Laravel database seeding..."
-          
-          # Run database seeding with error handling
-          echo "🚀 Executing database seeding..."
-          if az webapp ssh --resource-group stms --name $APP_NAME --command "cd /var/www/html && php artisan db:seed --force"; then
-            echo "✅ Database seeding completed successfully"
-          else
-            echo "❌ Seeding failed"
-            echo "🔍 Checking Laravel logs..."
-            az webapp ssh --resource-group stms --name $APP_NAME --command "cd /var/www/html && tail -50 storage/logs/laravel.log" || true
-            exit 1
-          fi
-        
-    - name: Final health check
-      run: |
-        APP_NAME=$(az webapp list --resource-group stms --query "[0].name" -o tsv)
-        APP_URL="https://$APP_NAME.azurewebsites.net"
-        
-        echo "🏥 Running final health check..."
-        if curl -s --connect-timeout 10 --max-time 30 "$APP_URL/health" > /dev/null; then
-          echo "✅ Application health check passed"
-        else
-          echo "⚠️ Health check failed, but deployment may still be successful"
-        fi
-        
-    - name: Deployment summary
-      uses: azure/cli@v2
-      with:
-        azcliversion: latest
-        inlineScript: |
-          APP_NAME=$(az webapp list --resource-group stms --query "[0].name" -o tsv)
-          echo "🎉 Deployment completed successfully!"
-          echo "🌐 Application URL: https://$APP_NAME.azurewebsites.net"
-          echo "📊 Database migrations and seeding completed via Azure CLI"
-          echo "🔗 Additional endpoints:"
-          echo "   - Health: https://$APP_NAME.azurewebsites.net/health"
-          echo "   - Database Status: https://$APP_NAME.azurewebsites.net/test-db"
-          echo "🐳 Container Image: $ACR_NAME.azurecr.io/stms-app:$IMAGE_TAG"
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Azure CLI script
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az account show
         echo ""
         echo "� Next Steps - Run these manually when needed:"
         echo "   🗄️  Database Migrations: https://$APP_NAME.azurewebsites.net/setup-database"
