@@ -25,16 +25,33 @@ jobs:
         echo "AZURE_CREDENTIALS available: ${{ secrets.AZURE_CREDENTIALS != '' }}"
         echo "AZURE_CREDENTIALS length: ${{ length(secrets.AZURE_CREDENTIALS) }}"
         
+        echo ""
+        echo "📋 Required AZURE_CREDENTIALS JSON format:"
+        echo '{'
+        echo '  "clientId": "your-service-principal-client-id",'
+        echo '  "clientSecret": "your-service-principal-client-secret",'
+        echo '  "subscriptionId": "your-subscription-id",'
+        echo '  "tenantId": "your-tenant-id"'
+        echo '}'
+        echo ""
+        echo "⚠️  Note: Field names must be exact (clientId, not client-id)"
+        
         # Parse and validate the AZURE_CREDENTIALS JSON structure
         echo "🔍 Validating AZURE_CREDENTIALS JSON structure..."
-        echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '. | keys[]' | sort
-        echo "clientId present: $(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r 'has("clientId")')"
-        echo "clientSecret present: $(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r 'has("clientSecret")')"
-        echo "tenantId present: $(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r 'has("tenantId")')"
-        echo "subscriptionId present: $(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r 'has("subscriptionId")')"
+        if echo '${{ secrets.AZURE_CREDENTIALS }}' | jq . > /dev/null 2>&1; then
+          echo "✅ JSON is valid"
+          echo "Available keys:"
+          echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '. | keys[]' | sort
+          echo "clientId present: $(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r 'has("clientId")')"
+          echo "clientSecret present: $(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r 'has("clientSecret")')"
+          echo "tenantId present: $(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r 'has("tenantId")')"
+          echo "subscriptionId present: $(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r 'has("subscriptionId")')"
+        else
+          echo "❌ AZURE_CREDENTIALS is not valid JSON"
+        fi
         
     - name: Azure Login (Service Principal)
-      uses: azure/login@v2
+      uses: azure/login@v1
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
       id: azure_login
