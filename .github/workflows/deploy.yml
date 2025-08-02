@@ -25,6 +25,14 @@ jobs:
         echo "AZURE_CREDENTIALS available: ${{ secrets.AZURE_CREDENTIALS != '' }}"
         echo "AZURE_CREDENTIALS length: ${{ length(secrets.AZURE_CREDENTIALS) }}"
         
+        # Parse and validate the AZURE_CREDENTIALS JSON structure
+        echo "🔍 Validating AZURE_CREDENTIALS JSON structure..."
+        echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '. | keys[]' | sort
+        echo "clientId present: $(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r 'has("clientId")')"
+        echo "clientSecret present: $(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r 'has("clientSecret")')"
+        echo "tenantId present: $(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r 'has("tenantId")')"
+        echo "subscriptionId present: $(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r 'has("subscriptionId")')"
+        
     - name: Azure Login (Service Principal)
       uses: azure/login@v2
       with:
