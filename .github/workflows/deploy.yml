@@ -11,9 +11,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: production
-    permissions:
-      id-token: write
-      contents: read
     
     steps:
     - name: Checkout code
@@ -22,8 +19,6 @@ jobs:
     - name: Debug Authentication Environment
       run: |
         echo "🔍 Checking authentication environment..."
-        echo "ACTIONS_ID_TOKEN_REQUEST_URL available: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL != '' }}"
-        echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN available: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN != '' }}"
         echo "Environment: ${{ github.event_name }}"
         echo "Repository: ${{ github.repository }}"
         echo "Branch: ${{ github.ref_name }}"
