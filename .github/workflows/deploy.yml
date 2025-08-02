@@ -67,7 +67,7 @@ jobs:
         APP_NAME=$(az webapp list --resource-group stms --query "[0].name" -o tsv)
         APP_URL="https://$APP_NAME.azurewebsites.net"
         
-        echo "Checking application health (basic connectivity only)..."
+        echo "Checking application health..."
         for i in {1..10}; do
           if curl -s --connect-timeout 10 --max-time 30 "$APP_URL" > /dev/null; then
             echo "✅ Application is responding"
@@ -78,16 +78,92 @@ jobs:
           fi
         done
         
-        echo "🔄 Container deployment completed"
-        echo "📋 Database operations should be run manually via web endpoints:"
-        echo "   - Migrations: $APP_URL/setup-database"
-        echo "   - Seeding: $APP_URL/seed-database"
+    - name: Check Database Connectivity
+      run: |
+        APP_NAME=$(az webapp list --resource-group stms --query "[0].name" -o tsv)
+        echo "🔌 Checking database connectivity..."
+        
+        # Wait additional time for database connections to be ready
+        sleep 15
+        
+        # Test database connection
+        az webapp ssh --resource-group stms --name $APP_NAME --command "cd /var/www/html && php artisan tinker --execute='DB::connection()->getPdo(); echo \"Database connected successfully\";'" || {
+          echo "⚠️ Database connection test failed, but continuing with migrations..."
+        }
+        
+    - name: Run Laravel Migrations via Azure CLI
+      run: |
+        APP_NAME=$(az webapp list --resource-group stms --query "[0].name" -o tsv)
+        echo "🔄 Running Laravel migrations..."
+        
+        # Wait a bit more to ensure container is fully ready
+        sleep 30
+        
+        # Check if we can access the container and find artisan
+        echo "📍 Locating artisan file..."
+        if ! az webapp ssh --resource-group stms --name $APP_NAME --command "test -f /var/www/html/artisan"; then
+          echo "❌ Could not find artisan file at /var/www/html/artisan"
+          echo "🔍 Listing container contents..."
+          az webapp ssh --resource-group stms --name $APP_NAME --command "ls -la /var/www/html/" || true
+          exit 1
+        fi
+        
+        echo "📍 Found artisan at /var/www/html/artisan"
+        
+        # Check current migration status
+        echo "📊 Checking current migration status..."
+        az webapp ssh --resource-group stms --name $APP_NAME --command "cd /var/www/html && php artisan migrate:status" || {
+          echo "⚠️ Could not check migration status, proceeding with migration..."
+        }
+        
+        # Run migrations
+        echo "🚀 Executing migrations..."
+        if az webapp ssh --resource-group stms --name $APP_NAME --command "cd /var/www/html && php artisan migrate --force"; then
+          echo "✅ Database migrations completed successfully"
+        else
+          echo "❌ Migration failed"
+          echo "🔍 Checking Laravel logs..."
+          az webapp ssh --resource-group stms --name $APP_NAME --command "cd /var/www/html && tail -50 storage/logs/laravel.log" || true
+          exit 1
+        fi
+        
+    - name: Run Laravel Database Seeding via Azure CLI
+      run: |
+        APP_NAME=$(az webapp list --resource-group stms --query "[0].name" -o tsv)
+        echo "🌱 Running Laravel database seeding..."
+        
+        # Run database seeding with error handling
+        echo "🚀 Executing database seeding..."
+        if az webapp ssh --resource-group stms --name $APP_NAME --command "cd /var/www/html && php artisan db:seed --force"; then
+          echo "✅ Database seeding completed successfully"
+        else
+          echo "❌ Seeding failed"
+          echo "🔍 Checking Laravel logs..."
+          az webapp ssh --resource-group stms --name $APP_NAME --command "cd /var/www/html && tail -50 storage/logs/laravel.log" || true
+          exit 1
+        fi
+        
+    - name: Final health check
+      run: |
+        APP_NAME=$(az webapp list --resource-group stms --query "[0].name" -o tsv)
+        APP_URL="https://$APP_NAME.azurewebsites.net"
+        
+        echo "🏥 Running final health check..."
+        if curl -s --connect-timeout 10 --max-time 30 "$APP_URL/health" > /dev/null; then
+          echo "✅ Application health check passed"
+        else
+          echo "⚠️ Health check failed, but deployment may still be successful"
+        fi
         
     - name: Deployment summary
       run: |
         APP_NAME=$(az webapp list --resource-group stms --query "[0].name" -o tsv)
-        echo "✅ Container deployment completed successfully!"
+        echo "🎉 Deployment completed successfully!"
         echo "🌐 Application URL: https://$APP_NAME.azurewebsites.net"
+        echo "📊 Database migrations and seeding completed via Azure CLI"
+        echo "🔗 Additional endpoints:"
+        echo "   - Health: https://$APP_NAME.azurewebsites.net/health"
+        echo "   - Database Status: https://$APP_NAME.azurewebsites.net/test-db"
         echo "🐳 Container Image: $ACR_NAME.azurecr.io/stms-app:$IMAGE_TAG"
         echo ""
         echo "� Next Steps - Run these manually when needed:"
