@@ -11,17 +11,33 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      id-token: write
+      contents: read
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
+    - name: Debug Authentication Environment
+      run: |
+        echo "🔍 Checking authentication environment..."
+        echo "ACTIONS_ID_TOKEN_REQUEST_URL available: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL != '' }}"
+        echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN available: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN != '' }}"
+        echo "Environment: ${{ github.event_name }}"
+        
     - name: Azure Login
-      uses: azure/login@v1
+      uses: azure/login@v2
       with:
         client-id: ${{ secrets.AZURE_CLIENT_ID }}
         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        
+    - name: Verify Azure Login
+      run: |
+        echo "🔐 Verifying Azure authentication..."
+        az account show
+        az account list --output table
         
     - name: Build Docker image
       run: |
