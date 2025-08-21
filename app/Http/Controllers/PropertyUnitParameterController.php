@@ -61,7 +61,6 @@ class PropertyUnitParameterController extends Controller
                         'educational_discount_percentage' => 'nullable|numeric|min:0|max:100',
                         'corporate_discount_percentage' => 'nullable|numeric|min:0|max:100',
                         'student_discount_percentage' => 'nullable|numeric|min:0|max:100',
-                        'off_peak_discount_percentage' => 'nullable|numeric|min:0|max:100',
                         'minimum_booking_hours' => 'nullable|integer|min:1',
                         'maximum_booking_hours' => 'nullable|integer|min:1',
                         'rental_duration_months' => 'nullable|integer|min:1',
@@ -90,7 +89,6 @@ class PropertyUnitParameterController extends Controller
                         'educational_discount_percentage' => $request->educational_discount_percentage,
                         'corporate_discount_percentage' => $request->corporate_discount_percentage,
                         'student_discount_percentage' => $request->student_discount_percentage,
-                        'off_peak_discount_percentage' => $request->off_peak_discount_percentage,
                         'minimum_booking_hours' => $request->minimum_booking_hours,
                         'maximum_booking_hours' => $request->maximum_booking_hours,
                         'rental_duration_months' => $request->pricing_type === 'rental' ? $request->rental_duration_months : null,
@@ -190,7 +188,6 @@ class PropertyUnitParameterController extends Controller
                         'educational_discount_percentage' => 'nullable|numeric|min:0|max:100',
                         'corporate_discount_percentage' => 'nullable|numeric|min:0|max:100',
                         'student_discount_percentage' => 'nullable|numeric|min:0|max:100',
-                        'off_peak_discount_percentage' => 'nullable|numeric|min:0|max:100',
                         'minimum_booking_hours' => 'nullable|integer|min:1',
                         'maximum_booking_hours' => 'nullable|integer|min:1',
                         'rental_duration_months' => 'nullable|integer|min:1',
@@ -219,7 +216,6 @@ class PropertyUnitParameterController extends Controller
                         'educational_discount_percentage' => $request->educational_discount_percentage,
                         'corporate_discount_percentage' => $request->corporate_discount_percentage,
                         'student_discount_percentage' => $request->student_discount_percentage,
-                        'off_peak_discount_percentage' => $request->off_peak_discount_percentage,
                         'minimum_booking_hours' => $request->minimum_booking_hours,
                         'maximum_booking_hours' => $request->maximum_booking_hours,
                         'rental_duration_months' => $request->pricing_type === 'rental' ? $request->rental_duration_months : null,
@@ -303,7 +299,7 @@ class PropertyUnitParameterController extends Controller
 
             DB::commit();
 
-            return redirect()->route('parameters.index')
+            return redirect()->route('parameters.index', ['tab' => $type === 'amenity' ? 'amenities' : ($type === 'service' ? 'services' : $type)])
                 ->with('success', ucfirst($type) . ' deleted successfully!');
 
         } catch (\Exception $e) {

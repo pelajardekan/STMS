@@ -676,7 +676,6 @@ function showPricingDetails(pricing) {
     html += `<div><b>Corporate Discount %:</b> ${pricing.corporate_discount_percentage ?? '-'}%</div>`;
     html += `<div><b>Student Discount %:</b> ${pricing.student_discount_percentage ?? '-'}%</div>`;
     
-    html += `<div><b>Off Peak Discount %:</b> ${pricing.off_peak_discount_percentage ?? '-'}%</div>`;
     html += `<div><b>Min Booking Hours:</b> ${pricing.minimum_booking_hours ?? '-'}</div>`;
     html += `<div><b>Max Booking Hours:</b> ${pricing.maximum_booking_hours ?? '-'}</div>`;
     html += `<div><b>Status:</b> ${pricing.is_active ? 'Active' : 'Inactive'}</div>`;

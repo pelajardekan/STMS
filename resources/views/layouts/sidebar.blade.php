@@ -8,6 +8,7 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600,700" rel="stylesheet" />
+    
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <!-- Livewire Styles -->
@@ -255,7 +256,7 @@
                     <button @click="sidebarExpanded = !sidebarExpanded"
                             class="btn btn-ghost w-full text-base-content hover:text-base-content h-12"
                             :class="sidebarExpanded ? 'justify-start' : 'justify-center'">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
                         </svg>
                         <template x-if="sidebarExpanded"><span class="ml-3">Collapse</span></template>

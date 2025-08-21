@@ -72,7 +72,7 @@
                         <span class="label-text">Property</span>
                     </label>
                     <div class="relative">
-                        <select name="property_id" id="property_id" class="select select-bordered w-full pl-10 @error('property_id') select-error @enderror" required onchange="updateAvailableUnits()">
+                        <select name="property_id" id="property_id" class="select select-bordered w-full pl-10 @error('property_id') select-error @enderror" required onchange="updateUnits()">
                             <option value="">Select Property</option>
                             @foreach($properties as $property)
                                 <option value="{{ $property->property_id }}" {{ old('property_id') == $property->property_id ? 'selected' : '' }}>
@@ -179,6 +179,7 @@
                             class="input input-bordered w-full pl-10 @error('start_time') input-error @enderror"
                             value="{{ old('start_time') }}"
                             required
+                            onchange="calculateDuration()"
                         />
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
                             <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -204,6 +205,7 @@
                             class="input input-bordered w-full pl-10 @error('end_time') input-error @enderror"
                             value="{{ old('end_time') }}"
                             required
+                            onchange="calculateDuration()"
                         />
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
                             <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -217,22 +219,25 @@
                 </div>
             </div>
 
-            <!-- Duration -->
+            <!-- Duration (Auto-calculated, Read-only) -->
             <div class="form-control">
                 <label class="label">
-                    <span class="label-text">Duration</span>
+                    <span class="label-text">Duration (Auto-calculated)</span>
                 </label>
                 <div class="relative">
                     <input
-                        type="number"
+                        type="text"
+                        name="duration_display"
+                        id="duration_display"
+                        placeholder="Select start and end time to calculate duration"
+                        class="input input-bordered w-full pl-10 bg-base-200"
+                        readonly
+                    />
+                    <input
+                        type="hidden"
                         name="duration"
                         id="duration"
-                        placeholder="Enter duration"
-                        class="input input-bordered w-full pl-10 @error('duration') input-error @enderror"
                         value="{{ old('duration') }}"
-                        required
-                        min="1"
-                        max="24"
                     />
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
                         <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -311,41 +316,54 @@ function updateUnits() {
                 unitSelect.appendChild(option);
             }
         });
+        
+        if (unitSelect.children.length === 1) {
+            unitSelect.innerHTML = '<option value="">No booking units available for this property</option>';
+        }
     }
 }
 
-async function updateAvailableUnits() {
-    const propertyId = document.getElementById('property_id').value;
-    const date = document.getElementById('date').value;
-    const unitSelect = document.getElementById('unit_id');
+function calculateDuration() {
+    const startTime = document.getElementById('start_time').value;
+    const endTime = document.getElementById('end_time').value;
+    const durationDisplay = document.getElementById('duration_display');
+    const durationHidden = document.getElementById('duration');
+    const durationType = document.getElementById('duration_type').value;
     
-    // Clear current options
-    unitSelect.innerHTML = '<option value="">Loading available units...</option>';
-    
-    if (propertyId && date) {
-        try {
-            const response = await fetch(`/admin/booking-requests/available-units?property_id=${propertyId}&date=${date}`);
-            const units = await response.json();
-            
-            // Clear and populate options
-            unitSelect.innerHTML = '<option value="">Select Unit</option>';
-            
-            units.forEach(unit => {
-                const option = document.createElement('option');
-                option.value = unit.unit_id;
-                option.textContent = unit.name;
-                unitSelect.appendChild(option);
-            });
-            
-            if (units.length === 0) {
-                unitSelect.innerHTML = '<option value="">No available units for this date</option>';
+    if (startTime && endTime) {
+        const start = new Date(`2000-01-01T${startTime}:00`);
+        const end = new Date(`2000-01-01T${endTime}:00`);
+        
+        // Handle overnight bookings
+        if (end < start) {
+            end.setDate(end.getDate() + 1);
+        }
+        
+        const diffMs = end - start;
+        const diffHours = diffMs / (1000 * 60 * 60);
+        
+        if (diffHours > 0) {
+            if (durationType === 'hourly') {
+                const hours = Math.ceil(diffHours);
+                durationDisplay.value = `${hours} hour${hours !== 1 ? 's' : ''}`;
+                durationHidden.value = hours;
+            } else if (durationType === 'daily') {
+                const days = Math.ceil(diffHours / 24);
+                durationDisplay.value = `${days} day${days !== 1 ? 's' : ''}`;
+                durationHidden.value = days;
+            } else {
+                // Default to hours if duration type not selected
+                const hours = Math.ceil(diffHours);
+                durationDisplay.value = `${hours} hour${hours !== 1 ? 's' : ''} (Please select duration type)`;
+                durationHidden.value = hours;
             }
-        } catch (error) {
-            console.error('Error loading available units:', error);
-            unitSelect.innerHTML = '<option value="">Error loading units</option>';
+        } else {
+            durationDisplay.value = 'End time must be after start time';
+            durationHidden.value = '';
         }
     } else {
-        unitSelect.innerHTML = '<option value="">Select Property and Date First</option>';
+        durationDisplay.value = 'Select start and end time to calculate duration';
+        durationHidden.value = '';
     }
 }
 
@@ -356,9 +374,11 @@ document.addEventListener('DOMContentLoaded', function() {
     tomorrow.setDate(tomorrow.getDate() + 1);
     document.getElementById('date').min = tomorrow.toISOString().split('T')[0];
     
-    // Add event listeners for dynamic unit loading
-    document.getElementById('property_id').addEventListener('change', updateAvailableUnits);
-    document.getElementById('date').addEventListener('change', updateAvailableUnits);
+    // Add event listener for duration type change
+    document.getElementById('duration_type').addEventListener('change', calculateDuration);
+    
+    // Calculate initial duration if values are present (for form validation errors)
+    calculateDuration();
     
     // Auto-hide alerts after 5 seconds
     const alerts = document.querySelectorAll('.alert');

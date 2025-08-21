@@ -16,7 +16,7 @@ class InvoiceController extends Controller
      */
     public function index()
     {
-        $invoices = Invoice::with(['rental.rentalRequest.tenant', 'booking.bookingRequest.tenant'])
+        $invoices = Invoice::with(['rental.rentalRequest.tenant.user', 'booking.bookingRequest.tenant.user'])
             ->orderBy('created_at', 'desc')
             ->paginate(10);
 

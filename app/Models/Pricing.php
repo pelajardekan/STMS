@@ -26,7 +26,6 @@ class Pricing extends Model
         'educational_discount_percentage',
         'corporate_discount_percentage',
         'student_discount_percentage',
-        'off_peak_discount_percentage',
         'minimum_booking_hours',
         'maximum_booking_hours',
         'special_rates',

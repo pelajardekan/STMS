@@ -59,11 +59,6 @@ class PricingCalculator
                 break;
         }
         
-        // Apply off-peak discount (NULL = no off-peak pricing)
-        if (!$isPeakHour && $pricing->off_peak_discount_percentage !== null) {
-            $basePrice = $basePrice * (1 - ($pricing->off_peak_discount_percentage / 100));
-        }
-        
         // Apply customer discount
         $finalPrice = $basePrice * (1 - ($customerDiscount / 100));
         
@@ -80,7 +75,6 @@ class PricingCalculator
                 'customer_type' => $customerType,
                 'customer_discount_percentage' => $customerDiscount,
                 'is_peak_hour' => $isPeakHour,
-                'off_peak_discount' => $pricing->off_peak_discount_percentage ?? 0,
             ]
         ];
     }

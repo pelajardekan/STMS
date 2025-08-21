@@ -14,8 +14,16 @@ class PaymentController extends Controller
      */
     public function index()
     {
-        $payments = Payment::with(['invoice.tenant'])->orderBy('created_at', 'desc')->get();
-        return view('admin.payments.index', compact('payments'));
+        $payments = Payment::with(['invoice.rental.rentalRequest.tenant.user', 'invoice.booking.bookingRequest.tenant.user'])
+            ->orderBy('created_at', 'desc')
+            ->paginate(10);
+        
+        // Also get invoices for the invoices tab
+        $invoices = Invoice::with(['rental.rentalRequest.tenant.user', 'booking.bookingRequest.tenant.user'])
+            ->orderBy('created_at', 'desc')
+            ->paginate(10);
+            
+        return view('admin.payments.index', compact('payments', 'invoices'));
     }
 
     /**
@@ -24,17 +32,53 @@ class PaymentController extends Controller
     public function create()
     {
         try {
-            // Get unpaid invoices for payment
-            $invoices = Invoice::with('tenant')
-                ->where('status', 'unpaid')
+            // TEMPORARY FIX: Get ALL invoices that are not already paid
+            $invoices = Invoice::with(['rental.rentalRequest.tenant.user', 'booking.bookingRequest.tenant.user'])
+                ->where('status', '!=', 'paid')
                 ->orderBy('created_at', 'desc')
                 ->get();
+                
+            // Log what we found for debugging
+            \Log::info('Payment form loaded invoices:', [
+                'count' => $invoices->count(),
+                'statuses' => $invoices->pluck('status')->unique()->toArray()
+            ]);
         } catch (\Exception $e) {
             // If database connection fails, provide empty collection
             $invoices = collect([]);
+            \Log::error('Payment form error: ' . $e->getMessage());
         }
         
         return view('admin.payments.create', compact('invoices'));
+    }
+
+    /**
+     * Debug method to show all invoice statuses
+     */
+    public function debug()
+    {
+        $allInvoices = Invoice::with(['rental.rentalRequest.tenant.user', 'booking.bookingRequest.tenant.user'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+            
+        $statusCounts = $allInvoices->groupBy('status')->map(function($group) {
+            return $group->count();
+        });
+        
+        return response()->json([
+            'total_invoices' => $allInvoices->count(),
+            'status_breakdown' => $statusCounts,
+            'all_invoices' => $allInvoices->map(function($invoice) {
+                $tenant = $invoice->tenant();
+                return [
+                    'invoice_id' => $invoice->invoice_id,
+                    'status' => $invoice->status,
+                    'amount' => $invoice->amount,
+                    'tenant' => $tenant ? $tenant->name : 'No Tenant',
+                    'type' => $invoice->rental_id ? 'rental' : ($invoice->booking_id ? 'booking' : 'unknown')
+                ];
+            })
+        ]);
     }
 
     /**
@@ -45,7 +89,7 @@ class PaymentController extends Controller
         $request->validate([
             'invoice_id' => 'required|exists:invoices,invoice_id',
             'amount' => 'required|numeric|min:0',
-            'payment_method' => 'required|in:cash,bank_transfer,credit_card,debit_card,online_payment',
+            'payment_method' => 'nullable|in:cash,bank_transfer,credit_card,debit_card,online_payment',
             'payment_date' => 'required|date',
             'reference_number' => 'nullable|string|max:255',
             'notes' => 'nullable|string|max:1000',
@@ -54,7 +98,7 @@ class PaymentController extends Controller
         try {
             DB::beginTransaction();
 
-            // Create the payment
+            // Create the payment with all available columns
             $payment = Payment::create([
                 'invoice_id' => $request->invoice_id,
                 'amount' => $request->amount,
@@ -67,6 +111,9 @@ class PaymentController extends Controller
 
             // Update the invoice status to paid
             $invoice = Invoice::find($request->invoice_id);
+            if (!$invoice) {
+                throw new \Exception("Invoice not found with ID: {$request->invoice_id}");
+            }
             $invoice->update(['status' => 'paid']);
 
             DB::commit();
@@ -76,8 +123,15 @@ class PaymentController extends Controller
 
         } catch (\Exception $e) {
             DB::rollback();
+            
+            // Log the actual error for debugging
+            \Log::error('Payment processing failed: ' . $e->getMessage(), [
+                'request_data' => $request->all(),
+                'stack_trace' => $e->getTraceAsString()
+            ]);
+            
             return back()->withInput()
-                ->with('error', 'Failed to process payment. Please try again.');
+                ->with('error', 'Failed to process payment: ' . $e->getMessage());
         }
     }
 
@@ -86,7 +140,8 @@ class PaymentController extends Controller
      */
     public function show(string $id)
     {
-        $payment = Payment::with(['invoice.tenant'])->findOrFail($id);
+        $payment = Payment::with(['invoice.rental.rentalRequest.tenant.user', 'invoice.booking.bookingRequest.tenant.user'])
+            ->findOrFail($id);
         return view('admin.payments.show', compact('payment'));
     }
 
@@ -95,9 +150,8 @@ class PaymentController extends Controller
      */
     public function edit(string $id)
     {
-        $payment = Payment::with(['invoice.tenant'])->findOrFail($id);
-        $invoices = Invoice::with('tenant')->orderBy('created_at', 'desc')->get();
-        return view('admin.payments.edit', compact('payment', 'invoices'));
+        // For now, redirect to show since we don't have edit functionality
+        return redirect()->route('admin.payments.show', $id);
     }
 
     /**
@@ -129,7 +183,7 @@ class PaymentController extends Controller
 
             DB::commit();
 
-            return redirect()->route('admin.payments.index')
+            return redirect()->route('admin.invoices.index')
                 ->with('success', 'Payment updated successfully!');
 
         } catch (\Exception $e) {
@@ -158,7 +212,7 @@ class PaymentController extends Controller
 
             DB::commit();
 
-            return redirect()->route('admin.payments.index')
+            return redirect()->route('admin.invoices.index')
                 ->with('success', 'Payment deleted successfully!');
 
         } catch (\Exception $e) {

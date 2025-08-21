@@ -16,7 +16,7 @@ class BookingRequestController extends Controller
      */
     public function index()
     {
-        $bookingRequests = BookingRequest::with(['tenant', 'property', 'unit'])
+        $bookingRequests = BookingRequest::with(['tenant.user', 'property', 'unit'])
             ->orderBy('created_at', 'desc')
             ->paginate(10);
 

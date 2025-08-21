@@ -17,7 +17,7 @@ class RentalController extends Controller
      */
     public function index()
     {
-        $rentals = Rental::with(['rentalRequest.tenant', 'rentalRequest.property', 'rentalRequest.unit'])
+        $rentals = Rental::with(['rentalRequest.tenant.user', 'rentalRequest.property', 'rentalRequest.unit'])
             ->orderBy('created_at', 'desc')
             ->paginate(10);
 

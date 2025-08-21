@@ -41,4 +41,28 @@ class Tenant extends Model
     {
         return $this->hasMany(BookingRequest::class, 'tenant_id', 'tenant_id');
     }
+
+    /**
+     * Get the tenant's name from user.
+     */
+    public function getNameAttribute()
+    {
+        return $this->user ? $this->user->name : null;
+    }
+
+    /**
+     * Get the tenant's email from user.
+     */
+    public function getEmailAttribute()
+    {
+        return $this->user ? $this->user->email : null;
+    }
+
+    /**
+     * Get the tenant's phone from user.
+     */
+    public function getPhoneAttribute()
+    {
+        return $this->user ? $this->user->phone : null;
+    }
 }

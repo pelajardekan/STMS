@@ -22,13 +22,34 @@
             </div>
         @endif
 
-        @if($errors->any())
+        @if(session('error'))
             <div class="alert alert-error mb-6" id="errorAlert">
                 <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span>{{ $errors->first() }}</span>
+                <span>{{ session('error') }}</span>
                 <button class="btn btn-sm btn-ghost" onclick="hideAlert('errorAlert')">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        @endif
+
+        @if($errors->any())
+            <div class="alert alert-error mb-6" id="validationErrorAlert">
+                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                    <div class="font-bold">Validation Errors:</div>
+                    <ul class="list-disc list-inside mt-2">
+                        @foreach($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+                <button class="btn btn-sm btn-ghost" onclick="hideAlert('validationErrorAlert')">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -48,8 +69,9 @@
                     <select name="invoice_id" id="invoice_id" class="select select-bordered w-full pl-10 @error('invoice_id') select-error @enderror" required onchange="updatePaymentAmount()">
                         <option value="">Select an invoice</option>
                         @forelse($invoices as $invoice)
+                            @php $tenant = $invoice->tenant(); @endphp
                             <option value="{{ $invoice->invoice_id }}" data-amount="{{ $invoice->amount }}">
-                                Invoice #{{ $invoice->invoice_id }} - {{ $invoice->tenant->name }} - RM{{ number_format($invoice->amount, 2) }}
+                                Invoice #{{ $invoice->invoice_id }} - {{ $tenant ? $tenant->name : 'No Tenant' }} - RM{{ number_format($invoice->amount, 2) }}
                             </option>
                         @empty
                             <option value="" disabled>No unpaid invoices available</option>
@@ -67,6 +89,13 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                         </svg>
                         <span>No unpaid invoices are currently available for payment.</span>
+                    </div>
+                @else
+                    <div class="alert alert-info mt-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <span>{{ $invoices->count() }} invoice(s) available for payment.</span>
                     </div>
                 @endif
                 @error('invoice_id')
@@ -248,6 +277,35 @@ function updatePaymentAmount() {
 // Initialize form
 document.addEventListener('DOMContentLoaded', function() {
     updatePaymentAmount();
+    
+    // Add form submission debugging
+    const form = document.getElementById('paymentForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            console.log('Form submission triggered');
+            
+            // Check required fields
+            const requiredFields = ['invoice_id', 'amount', 'payment_method', 'payment_date'];
+            const missingFields = [];
+            
+            requiredFields.forEach(fieldName => {
+                const field = document.querySelector(`[name="${fieldName}"]`);
+                if (!field || !field.value) {
+                    missingFields.push(fieldName);
+                }
+            });
+            
+            if (missingFields.length > 0) {
+                console.error('Missing required fields:', missingFields);
+                alert('Please fill in all required fields: ' + missingFields.join(', '));
+                e.preventDefault();
+                return false;
+            }
+            
+            console.log('Form data:', new FormData(form));
+            console.log('Submitting to:', form.action);
+        });
+    }
 });
 </script>
 @endsection 

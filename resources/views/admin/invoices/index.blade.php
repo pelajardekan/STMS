@@ -67,7 +67,7 @@
         <!-- Main Tabs -->
         <div role="tablist" class="tabs tabs-boxed mb-6">
             <a role="tab" class="tab tab-active" id="tab-invoices" onclick="showMainTab('invoices')">Invoices</a>
-            <a role="tab" class="tab" id="tab-payments" onclick="showMainTab('payments')">Payments</a>
+            <a role="tab" class="tab" href="{{ route('admin.payments.index') }}" id="tab-payments">Payments</a>
         </div>
 
         <!-- Invoices Section -->
@@ -94,11 +94,10 @@
                     </div>
                 </div>
                 <div class="flex gap-2">
-                    <select class="select select-bordered" id="statusFilter">
-                        <option value="">All Status</option>
-                        <option value="unpaid">Unpaid</option>
-                        <option value="paid">Paid</option>
-                        <option value="overdue">Overdue</option>
+                    <select class="select select-bordered" id="leaseTypeFilter">
+                        <option value="">All Types</option>
+                        <option value="rental">Rental</option>
+                        <option value="booking">Booking</option>
                     </select>
                     <select class="select select-bordered" id="sortBy">
                         <option value="">Sort By</option>
@@ -128,7 +127,7 @@
                         </thead>
                         <tbody>
                             @forelse($invoices as $invoice)
-                                <tr class="hover:bg-base-200/50 transition-colors">
+                                <tr class="hover:bg-base-200/50 transition-colors" data-lease-type="{{ $invoice->rental_id ? 'rental' : ($invoice->booking_id ? 'booking' : 'unknown') }}">
                                     <td>
                                         <div>
                                             <div class="font-bold text-primary">INV-{{ str_pad($invoice->invoice_id, 3, '0', STR_PAD_LEFT) }}</div>
@@ -137,17 +136,28 @@
                                     </td>
                                     <td>
                                         <div>
-                                            @if($invoice->rental)
-                                                <div class="font-medium text-base-content">{{ $invoice->rental->rentalRequest->tenant->name }}</div>
-                                                <div class="text-sm text-base-content/60">{{ $invoice->rental->rentalRequest->tenant->email }}</div>
+                                            @php $tenant = $invoice->tenant(); @endphp
+                                            @if($tenant)
+                                                <div class="font-medium text-base-content">{{ $tenant->name }}</div>
+                                                <div class="text-sm text-base-content/60">{{ $tenant->email }}</div>
                                             @else
-                                                <div class="font-medium text-base-content">{{ $invoice->booking->bookingRequest->tenant->name }}</div>
-                                                <div class="text-sm text-base-content/60">{{ $invoice->booking->bookingRequest->tenant->email }}</div>
+                                                <div class="font-medium text-error">No Tenant</div>
+                                                <div class="text-sm text-base-content/60">
+                                                    @if($invoice->rental_id)
+                                                        Rental ID: {{ $invoice->rental_id }}
+                                                        @if(!$invoice->rental) | Missing Rental @endif
+                                                    @elseif($invoice->booking_id)
+                                                        Booking ID: {{ $invoice->booking_id }}
+                                                        @if(!$invoice->booking) | Missing Booking @endif
+                                                    @else
+                                                        No rental_id or booking_id
+                                                    @endif
+                                                </div>
                                             @endif
                                         </div>
                                     </td>
                                     <td>
-                                        @if($invoice->rental)
+                                        @if($invoice->rental_id)
                                             <span class="badge badge-primary gap-1">
                                                 <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                                     <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
@@ -213,7 +223,7 @@
                                                 </svg>
                                             </a>
                                             <button class="btn btn-ghost btn-sm text-error" 
-                                                    onclick="openDeleteModal({{ $invoice->invoice_id }}, '{{ $invoice->rental ? $invoice->rental->rentalRequest->tenant->name : $invoice->booking->bookingRequest->tenant->name }}')"
+                                                    onclick="openDeleteModal({{ $invoice->invoice_id }}, '{{ $invoice->tenant() ? $invoice->tenant()->name : 'No Tenant' }}')"
                                                     title="Delete Invoice">
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -265,8 +275,10 @@
                             </tr>
                         </thead>
                         <tbody>
+                            @php $hasPaidInvoices = false; @endphp
                             @foreach($invoices as $invoice)
                                 @if($invoice->status === 'paid')
+                                    @php $hasPaidInvoices = true; @endphp
                                     <tr class="hover:bg-base-200/50 transition-colors">
                                         <td>
                                             <div>
@@ -276,17 +288,18 @@
                                         </td>
                                         <td>
                                             <div>
-                                                @if($invoice->rental)
-                                                    <div class="font-medium text-base-content">{{ $invoice->rental->rentalRequest->tenant->name }}</div>
-                                                    <div class="text-sm text-base-content/60">{{ $invoice->rental->rentalRequest->tenant->email }}</div>
+                                                @php $tenant = $invoice->tenant(); @endphp
+                                                @if($tenant)
+                                                    <div class="font-medium text-base-content">{{ $tenant->name }}</div>
+                                                    <div class="text-sm text-base-content/60">{{ $tenant->email }}</div>
                                                 @else
-                                                    <div class="font-medium text-base-content">{{ $invoice->booking->bookingRequest->tenant->name }}</div>
-                                                    <div class="text-sm text-base-content/60">{{ $invoice->booking->bookingRequest->tenant->email }}</div>
+                                                    <div class="font-medium text-base-content">Unknown Tenant</div>
+                                                    <div class="text-sm text-base-content/60">No Email</div>
                                                 @endif
                                             </div>
                                         </td>
                                         <td>
-                                            @if($invoice->rental)
+                                            @if($invoice->rental_id)
                                                 <span class="badge badge-primary gap-1">Rental</span>
                                             @else
                                                 <span class="badge badge-secondary gap-1">Booking</span>
@@ -326,6 +339,22 @@
                                     </tr>
                                 @endif
                             @endforeach
+                            
+                            @if(!$hasPaidInvoices)
+                                <tr>
+                                    <td colspan="8" class="text-center py-12">
+                                        <div class="flex flex-col items-center gap-4">
+                                            <svg class="w-16 h-16 text-base-content/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                            </svg>
+                                            <div>
+                                                <h3 class="text-lg font-semibold text-base-content">No paid invoices</h3>
+                                                <p class="text-base-content/60">Paid invoices will appear here when payments are processed.</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endif
                         </tbody>
                     </table>
                 </div>
@@ -348,8 +377,10 @@
                             </tr>
                         </thead>
                         <tbody>
+                            @php $hasUnpaidInvoices = false; @endphp
                             @foreach($invoices as $invoice)
                                 @if($invoice->status === 'unpaid' || $invoice->status === 'overdue')
+                                    @php $hasUnpaidInvoices = true; @endphp
                                     <tr class="hover:bg-base-200/50 transition-colors">
                                         <td>
                                             <div>
@@ -359,17 +390,18 @@
                                         </td>
                                         <td>
                                             <div>
-                                                @if($invoice->rental)
-                                                    <div class="font-medium text-base-content">{{ $invoice->rental->rentalRequest->tenant->name }}</div>
-                                                    <div class="text-sm text-base-content/60">{{ $invoice->rental->rentalRequest->tenant->email }}</div>
+                                                @php $tenant = $invoice->tenant(); @endphp
+                                                @if($tenant)
+                                                    <div class="font-medium text-base-content">{{ $tenant->name }}</div>
+                                                    <div class="text-sm text-base-content/60">{{ $tenant->email }}</div>
                                                 @else
-                                                    <div class="font-medium text-base-content">{{ $invoice->booking->bookingRequest->tenant->name }}</div>
-                                                    <div class="text-sm text-base-content/60">{{ $invoice->booking->bookingRequest->tenant->email }}</div>
+                                                    <div class="font-medium text-base-content">Unknown Tenant</div>
+                                                    <div class="text-sm text-base-content/60">No Email</div>
                                                 @endif
                                             </div>
                                         </td>
                                         <td>
-                                            @if($invoice->rental)
+                                            @if($invoice->rental_id)
                                                 <span class="badge badge-primary gap-1">Rental</span>
                                             @else
                                                 <span class="badge badge-secondary gap-1">Booking</span>
@@ -412,6 +444,22 @@
                                     </tr>
                                 @endif
                             @endforeach
+                            
+                            @if(!$hasUnpaidInvoices)
+                                <tr>
+                                    <td colspan="8" class="text-center py-12">
+                                        <div class="flex flex-col items-center gap-4">
+                                            <svg class="w-16 h-16 text-base-content/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                            </svg>
+                                            <div>
+                                                <h3 class="text-lg font-semibold text-base-content">No unpaid invoices</h3>
+                                                <p class="text-base-content/60">All invoices have been paid. Great job!</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endif
                         </tbody>
                     </table>
                 </div>
@@ -610,22 +658,19 @@ if (searchInput) {
     });
 }
 
-// Status filter functionality
-const statusFilter = document.getElementById('statusFilter');
-if (statusFilter) {
-    statusFilter.addEventListener('change', function() {
-        const selectedStatus = this.value.toLowerCase();
-        const rows = document.querySelectorAll('tbody tr');
+// Lease type filter functionality
+const leaseTypeFilter = document.getElementById('leaseTypeFilter');
+if (leaseTypeFilter) {
+    leaseTypeFilter.addEventListener('change', function() {
+        const selectedType = this.value.toLowerCase();
+        const rows = document.querySelectorAll('tbody tr[data-lease-type]');
         
         rows.forEach(row => {
-            const statusCell = row.querySelector('td:nth-child(6)');
-            if (statusCell) {
-                const statusText = statusCell.textContent.toLowerCase();
-                if (selectedStatus === '' || statusText.includes(selectedStatus)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
+            const leaseType = row.getAttribute('data-lease-type');
+            if (selectedType === '' || leaseType === selectedType) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
             }
         });
     });

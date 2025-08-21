@@ -102,6 +102,29 @@
             <input type="hidden" name="duration_type" value="{{ $bookingRequest->duration_type }}">
             <input type="hidden" name="duration" value="{{ $bookingRequest->duration }}">
 
+            <!-- Status -->
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Status</span>
+                </label>
+                <div class="relative">
+                    <select name="status" id="status" class="select select-bordered w-full pl-10 @error('status') select-error @enderror" required>
+                        <option value="">Select Status</option>
+                        <option value="pending" {{ old('status', $bookingRequest->status) == 'pending' ? 'selected' : '' }}>Pending</option>
+                        <option value="approved" {{ old('status', $bookingRequest->status) == 'approved' ? 'selected' : '' }}>Approved</option>
+                        <option value="rejected" {{ old('status', $bookingRequest->status) == 'rejected' ? 'selected' : '' }}>Rejected</option>
+                    </select>
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
+                        <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                </div>
+                @error('status')
+                    <span class="label-text-alt text-error">{{ $message }}</span>
+                @enderror
+            </div>
+
             <!-- Notes -->
             <div class="form-control">
                 <label class="label">

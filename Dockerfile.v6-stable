@@ -1,0 +1,63 @@
+# Minimal Laravel Container for v6-stable
+FROM php:8.3-fpm
+
+WORKDIR /var/www/html
+
+# Install essential system dependencies only
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libzip-dev \
+    libonig-dev \
+    zip \
+    unzip \
+    nodejs \
+    npm \
+    nginx \
+    supervisor \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Copy application files
+COPY . .
+
+# Install PHP dependencies without dev packages
+RUN composer install --no-dev --optimize-autoloader --no-interaction
+
+# Install and build frontend assets
+RUN npm ci && npm run build && npm prune --production
+
+# Set proper permissions
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html/storage \
+    && chmod -R 755 /var/www/html/bootstrap/cache
+
+# Create necessary directories
+RUN mkdir -p /var/log/supervisor \
+    && mkdir -p /var/run/php
+
+# Copy configuration files
+COPY docker/nginx.conf /etc/nginx/sites-available/default
+COPY docker/php-fpm.conf /usr/local/etc/php-fpm.d/www.conf
+COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Create startup script
+RUN echo '#!/bin/bash\n\
+set -e\n\
+echo "Starting STMS v6-stable container..."\n\
+\n\
+# Start supervisor (nginx + php-fpm)\n\
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf\n\
+' > /start.sh && chmod +x /start.sh
+
+EXPOSE 80
+
+CMD ["/start.sh"]

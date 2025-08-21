@@ -120,14 +120,27 @@
                             </td>
                             <td>
                                 <div>
-                                    <div class="font-medium text-base-content">{{ $rentalRequest->tenant->name }}</div>
-                                    <div class="text-sm text-base-content/60">{{ $rentalRequest->tenant->email }}</div>
+                                    @if($rentalRequest->tenant)
+                                        <div class="font-medium text-base-content">{{ $rentalRequest->tenant->name }}</div>
+                                        <div class="text-sm text-base-content/60">{{ $rentalRequest->tenant->email }}</div>
+                                    @else
+                                        <div class="font-medium text-error">No Tenant</div>
+                                        <div class="text-sm text-base-content/60">Tenant ID: {{ $rentalRequest->tenant_id ?? 'NULL' }}</div>
+                                    @endif
                                 </div>
                             </td>
                             <td>
                                 <div>
-                                    <div class="font-medium text-base-content">{{ $rentalRequest->property->name }}</div>
-                                    <div class="text-sm text-base-content/60">{{ $rentalRequest->unit->name }}</div>
+                                    @if($rentalRequest->property)
+                                        <div class="font-medium text-base-content">{{ $rentalRequest->property->property_name }}</div>
+                                    @else
+                                        <div class="font-medium text-error">No Property</div>
+                                    @endif
+                                    @if($rentalRequest->unit)
+                                        <div class="text-sm text-base-content/60">{{ $rentalRequest->unit->unit_number }}</div>
+                                    @else
+                                        <div class="text-sm text-error">No Unit</div>
+                                    @endif
                                 </div>
                             </td>
                             <td>
@@ -175,7 +188,7 @@
                                         </svg>
                                     </a>
                                     <button class="btn btn-ghost btn-sm text-error" 
-                                            onclick="openDeleteModal({{ $rentalRequest->rental_request_id }}, '{{ $rentalRequest->tenant->name }}')"
+                                            onclick="openDeleteModal({{ $rentalRequest->rental_request_id }}, '{{ $rentalRequest->tenant ? $rentalRequest->tenant->name : 'No Tenant' }}')"
                                             title="Delete Rental Request">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>

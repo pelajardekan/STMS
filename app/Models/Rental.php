@@ -44,7 +44,10 @@ class Rental extends Model
      */
     public function tenant()
     {
-        return $this->rentalRequest->tenant;
+        if (!$this->rentalRequest) {
+            $this->load('rentalRequest.tenant.user');
+        }
+        return $this->rentalRequest && $this->rentalRequest->tenant ? $this->rentalRequest->tenant : null;
     }
 
     /**
@@ -52,7 +55,7 @@ class Rental extends Model
      */
     public function property()
     {
-        return $this->rentalRequest->property;
+        return $this->rentalRequest && $this->rentalRequest->property ? $this->rentalRequest->property : null;
     }
 
     /**
@@ -60,6 +63,30 @@ class Rental extends Model
      */
     public function unit()
     {
-        return $this->rentalRequest->unit;
+        return $this->rentalRequest && $this->rentalRequest->unit ? $this->rentalRequest->unit : null;
+    }
+
+    /**
+     * Get the tenant attribute (for property access).
+     */
+    public function getTenantAttribute()
+    {
+        return $this->tenant();
+    }
+
+    /**
+     * Get the property attribute (for property access).
+     */
+    public function getPropertyAttribute()
+    {
+        return $this->property();
+    }
+
+    /**
+     * Get the unit attribute (for property access).
+     */
+    public function getUnitAttribute()
+    {
+        return $this->unit();
     }
 }

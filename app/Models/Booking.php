@@ -47,7 +47,10 @@ class Booking extends Model
      */
     public function tenant()
     {
-        return $this->bookingRequest->tenant;
+        if (!$this->bookingRequest) {
+            $this->load('bookingRequest.tenant.user');
+        }
+        return $this->bookingRequest && $this->bookingRequest->tenant ? $this->bookingRequest->tenant : null;
     }
 
     /**
@@ -55,7 +58,7 @@ class Booking extends Model
      */
     public function property()
     {
-        return $this->bookingRequest->property;
+        return $this->bookingRequest && $this->bookingRequest->property ? $this->bookingRequest->property : null;
     }
 
     /**
@@ -63,6 +66,30 @@ class Booking extends Model
      */
     public function unit()
     {
-        return $this->bookingRequest->unit;
+        return $this->bookingRequest && $this->bookingRequest->unit ? $this->bookingRequest->unit : null;
+    }
+
+    /**
+     * Get the tenant attribute (for property access).
+     */
+    public function getTenantAttribute()
+    {
+        return $this->tenant();
+    }
+
+    /**
+     * Get the property attribute (for property access).
+     */
+    public function getPropertyAttribute()
+    {
+        return $this->property();
+    }
+
+    /**
+     * Get the unit attribute (for property access).
+     */
+    public function getUnitAttribute()
+    {
+        return $this->unit();
     }
 }
